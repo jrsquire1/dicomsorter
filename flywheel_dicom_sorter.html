@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DICOM Sorter - Flywheel Extension</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+        }
+
+        .panel h2 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #34495e;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            transform: scale(1.2);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .status.info {
+            background: #e8f4fd;
+            color: #2980b9;
+            border: 1px solid #3498db;
+        }
+
+        .status.success {
+            background: #e8f5e8;
+            color: #27ae60;
+            border: 1px solid #2ecc71;
+        }
+
+        .status.error {
+            background: #fdf2f2;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
+        }
+
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+
+        .file-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            font-size: 14px;
+            border-left: 4px solid #667eea;
+        }
+
+        .context-info {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            grid-column: 1 / -1;
+        }
+
+        .context-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .context-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .context-item {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .context-item strong {
+            color: #2c3e50;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 DICOM Sorter</h1>
+            <p>Advanced DICOM file organization for Flywheel</p>
+        </div>
+
+        <div class="context-info" id="contextInfo">
+            <h3>📊 Current Context</h3>
+            <div class="context-grid" id="contextGrid">
+                <div class="context-item">
+                    <strong>Status:</strong> <span id="connectionStatus">Connecting...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>⚙️ Sorting Configuration</h2>
+                <form id="sortingForm">
+                    <div class="form-group">
+                        <label for="outputLocation">Output Location:</label>
+                        <select id="outputLocation">
+                            <option value="current">Current Container</option>
+                            <option value="download">Download as ZIP</option>
+                            <option value="new-session">New Session</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="prefix">Patient ID Prefix:</label>
+                        <input type="text" id="prefix" placeholder="e.g., STUDY_">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="suffix">Patient ID Suffix:</label>
+                        <input type="text" id="suffix" placeholder="e.g., _V1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="compression">Compression:</label>
+                        <select id="compression">
+                            <option value="none">None</option>
+                            <option value="zip">ZIP</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="preserveOriginal" checked>
+                            <label for="preserveOriginal">Preserve Original Files</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="includeProtocol" checked>
+                            <label for="includeProtocol">Include Protocol in Folder Names</label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn" id="startSorting">
+                        🚀 Start Sorting
+                    </button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>📁 DICOM Files</h2>
+                <div class="status info" id="fileStatus">
+                    Loading DICOM files...
+                </div>
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="file-list" id="fileList">
+                    <!-- Files will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="grid-column: 1 / -1; margin-top: 30px;">
+            <h2>📋 Sorting Log</h2>
+            <div id="sortingLog" style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; max-height: 200px; overflow-y: auto;">
+                Ready to sort DICOM files...
+            </div>
+        </div>
+    </div>
+
+    <!-- Flywheel Extension SDK -->
+    <script src="https://cdn.flywheel.io/sdk/extension/flywheel-extension-0.14.3.min.js"></script>
+    
+    <script>
+        class DicomSorter {
+            constructor() {
+                this.extension = null;
+                this.dicomFiles = [];
+                this.sortedStructure = new Map();
+                this.isProcessing = false;
+            }
+
+            async initialize() {
+                try {
+                    // Initialize Flywheel extension with ReadWrite scope
+                    this.extension = await Flywheel.initExtension({
+                        scope: 'ReadWrite',
+                        validateOrigin: origin => {
+                            // Allow common Flywheel domains and localhost for development
+                            return origin.includes('flywheel.io') || 
+                                   origin.includes('localhost') || 
+                                   origin.includes('127.0.0.1');
+                        }
+                    });
+
+                    this.updateContextInfo();
+                    await this.loadDicomFiles();
+                    this.setupEventListeners();
+                    
+                    this.log('✅ Extension initialized successfully');
+                } catch (error) {
+                    this.log(`❌ Initialization error: ${error.message}`, 'error');
+                }
+            }
+
+            updateContextInfo() {
+                const contextGrid = document.getElementById('contextGrid');
+                const container = this.extension.container;
+                const user = this.extension.user;
+
+                contextGrid.innerHTML = `
+                    <div class="context-item">
+                        <strong>Status:</strong> <span style="color: #27ae60;">Connected</span>
+                    </div>
+                    <div class="context-item">
+                        <strong>Container:</strong> ${container.label || container._id}
+                    </div>
+                    <div class="context-item">
+                        <strong>Type:</strong> ${container.container_type}
+                    </div>
+                    <div class="context-item">
+                        <strong>User:</strong> ${user.firstname} ${user.lastname}
+                    </div>
+                    <div class="context-item">
+                        <strong>Project:</strong> ${container.parents?.project || 'N/A'}
+                    </div>
+                    <div class="context-item">
+                        <strong>Subject:</strong> ${container.parents?.subject || 'N/A'}
+                    </div>
+                `;
+            }
+
+            async loadDicomFiles() {
+                try {
+                    this.updateStatus('🔍 Scanning for DICOM files...', 'info');
+                    
+                    // Get all files in the container
+                    const files = this.extension.container.files || [];
+                    
+                    // Filter for DICOM files
+                    this.dicomFiles = files.filter(file => 
+                        file.type === 'dicom' || 
+                        file.name.toLowerCase().endsWith('.dcm') ||
+                        file.mimetype === 'application/dicom'
+                    );
+
+                    this.updateFileList();
+                    
+                    if (this.dicomFiles.length === 0) {
+                        this.updateStatus('⚠️ No DICOM files found in this container', 'error');
+                    } else {
+                        this.updateStatus(`✅ Found ${this.dicomFiles.length} DICOM files`, 'success');
+                    }
+                    
+                } catch (error) {
+                    this.updateStatus(`❌ Error loading files: ${error.message}`, 'error');
+                    this.log(`Error loading DICOM files: ${error.message}`, 'error');
+                }
+            }
+
+            updateFileList() {
+                const fileList = document.getElementById('fileList');
+                
+                if (this.dicomFiles.length === 0) {
+                    fileList.innerHTML = '<div class="file-item">No DICOM files found</div>';
+                    return;
+                }
+
+                fileList.innerHTML = this.dicomFiles.map(file => `
+                    <div class="file-item">
+                        📄 ${file.name} (${this.formatFileSize(file.size)})
+                    </div>
+                `).join('');
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            setupEventListeners() {
+                const form = document.getElementById('sortingForm');
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.startSorting();
+                });
+            }
+
+            async startSorting() {
+                if (this.isProcessing) return;
+                
+                this.isProcessing = true;
+                const btn = document.getElementById('startSorting');
+                btn.disabled = true;
+                btn.textContent = '⏳ Processing...';
+
+                try {
+                    await this.processDicomFiles();
+                    this.log('🎉 Sorting completed successfully!', 'success');
+                } catch (error) {
+                    this.log(`❌ Sorting failed: ${error.message}`, 'error');
+                } finally {
+                    this.isProcessing = false;
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Start Sorting';
+                }
+            }
+
+            async processDicomFiles() {
+                const config = this.getSortingConfig();
+                this.sortedStructure.clear();
+                
+                this.log(`📋 Starting to process ${this.dicomFiles.length} DICOM files...`);
+                
+                for (let i = 0; i < this.dicomFiles.length; i++) {
+                    const file = this.dicomFiles[i];
+                    const progress = ((i + 1) / this.dicomFiles.length) * 100;
+                    
+                    this.updateProgress(progress);
+                    this.log(`📄 Processing file ${i + 1}/${this.dicomFiles.length}: ${file.name}`);
+                    
+                    try {
+                        await this.processSingleFile(file, config);
+                    } catch (error) {
+                        this.log(`⚠️ Error processing ${file.name}: ${error.message}`, 'error');
+                    }
+                }
+
+                await this.outputSortedFiles(config);
+            }
+
+            async processSingleFile(file, config) {
+                try {
+                    // Get DICOM metadata
+                    const metadata = await this.getDicomMetadata(file);
+                    
+                    if (!metadata) {
+                        throw new Error('Could not read DICOM metadata');
+                    }
+
+                    // Extract relevant fields
+                    let patientId = metadata.PatientID || 'Unknown';
+                    const seriesNumber = metadata.SeriesNumber || 0;
+                    const protocolName = metadata.ProtocolName || '';
+
+                    // Apply prefix/suffix
+                    if (config.prefix) patientId = config.prefix + patientId;
+                    if (config.suffix) patientId = patientId + config.suffix;
+
+                    // Clean up names
+                    patientId = patientId.replace(/[.]/g, '_');
+                    const cleanProtocol = protocolName.replace(/[.\s]/g, '_');
+
+                    // Create folder structure
+                    let folderName;
+                    if (config.includeProtocol && cleanProtocol) {
+                        folderName = `${String(seriesNumber).padStart(2, '0')}_${cleanProtocol}`;
+                    } else {
+                        folderName = String(seriesNumber).padStart(2, '0');
+                    }
+
+                    const path = `${patientId}/${folderName}`;
+                    
+                    // Add to sorted structure
+                    if (!this.sortedStructure.has(path)) {
+                        this.sortedStructure.set(path, []);
+                    }
+                    
+                    this.sortedStructure.get(path).push({
+                        file: file,
+                        newName: this.ensureDcmExtension(file.name)
+                    });
+
+                    this.log(`📁 Assigned ${file.name} to ${path}`);
+                    
+                } catch (error) {
+                    throw new Error(`Failed to process DICOM metadata: ${error.message}`);
+                }
+            }
+
+            async getDicomMetadata(file) {
+                try {
+                    // Try to get DICOM metadata from file info first
+                    if (file.info && file.info.header) {
+                        return file.info.header.dicom || {};
+                    }
+
+                    // If not available, we would need to read the file content
+                    // For now, return basic structure with fallbacks
+                    return {
+                        PatientID: file.info?.BIDS?.PatientID || 'Unknown',
+                        SeriesNumber: file.info?.header?.dicom?.SeriesNumber || 0,
+                        ProtocolName: file.info?.header?.dicom?.ProtocolName || ''
+                    };
+                    
+                } catch (error) {
+                    this.log(`⚠️ Could not extract metadata from ${file.name}, using defaults`);
+                    return {
+                        PatientID: 'Unknown',
+                        SeriesNumber: 0,
+                        ProtocolName: ''
+                    };
+                }
+            }
+
+            ensureDcmExtension(filename) {
+                if (!filename.toLowerCase().endsWith('.dcm')) {
+                    return filename + '.dcm';
+                }
+                return filename;
+            }
+
+            async outputSortedFiles(config) {
+                this.log('📦 Preparing sorted files...');
+                
+                const outputLocation = config.outputLocation;
+                
+                if (outputLocation === 'download') {
+                    await this.downloadSortedFiles(config);
+                } else if (outputLocation === 'current') {
+                    await this.uploadToCurrentContainer(config);
+                } else if (outputLocation === 'new-session') {
+                    await this.createNewSession(config);
+                }
+            }
+
+            async downloadSortedFiles(config) {
+                this.log('📥 Creating download package...');
+                
+                // Create a simple text file with the sorting structure
+                let content = '# DICOM Sorting Results\n\n';
+                content += `Generated: ${new Date().toISOString()}\n`;
+                content += `Total files: ${this.dicomFiles.length}\n`;
+                content += `Unique folders: ${this.sortedStructure.size}\n\n`;
+                
+                content += '## Folder Structure:\n\n';
+                for (const [path, files] of this.sortedStructure) {
+                    content += `📁 ${path}/\n`;
+                    for (const fileInfo of files) {
+                        content += `  📄 ${fileInfo.newName}\n`;
+                    }
+                    content += '\n';
+                }
+
+                // Create and download the results file
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'dicom_sorting_results.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                this.log('✅ Download started! Check your downloads folder.');
+            }
+
+            async uploadToCurrentContainer(config) {
+                this.log('📤 Would upload sorted files to current container...');
+                this.log('ℹ️ Note: File upload requires additional implementation for production use.');
+                
+                // In a real implementation, you would:
+                // 1. Create the folder structure in Flywheel
+                // 2. Copy/move files to new locations
+                // 3. Update metadata as needed
+                
+                this.log('✅ Sorting structure created (demonstration mode)');
+            }
+
+            async createNewSession(config) {
+                this.log('📁 Would create new session with sorted files...');
+                this.log('ℹ️ Note: Session creation requires additional implementation for production use.');
+                
+                // In a real implementation, you would:
+                // 1. Create a new session
+                // 2. Upload sorted files to the new session
+                // 3. Set appropriate metadata
+                
+                this.log('✅ New session would be created (demonstration mode)');
+            }
+
+            getSortingConfig() {
+                return {
+                    outputLocation: document.getElementById('outputLocation').value,
+                    prefix: document.getElementById('prefix').value.trim(),
+                    suffix: document.getElementById('suffix').value.trim(),
+                    compression: document.getElementById('compression').value,
+                    preserveOriginal: document.getElementById('preserveOriginal').checked,
+                    includeProtocol: document.getElementById('includeProtocol').checked
+                };
+            }
+
+            updateStatus(message, type = 'info') {
+                const statusEl = document.getElementById('fileStatus');
+                statusEl.textContent = message;
+                statusEl.className = `status ${type}`;
+            }
+
+            updateProgress(percentage) {
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.width = `${percentage}%`;
+            }
+
+            log(message, type = 'info') {
+                const logEl = document.getElementById('sortingLog');
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}\n`;
+                
+                logEl.textContent += logEntry;
+                logEl.scrollTop = logEl.scrollHeight;
+                
+                console.log(message);
+            }
+        }
+
+        // Initialize the application when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const sorter = new DicomSorter();
+            sorter.initialize();
+        });
+    </script>
+</body>
+</html>
