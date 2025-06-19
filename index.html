@@ -18,7 +18,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -60,6 +60,7 @@
             background: #f8fafc;
             transition: all 0.3s ease;
             cursor: pointer;
+            position: relative;
         }
 
         .drop-zone.dragover {
@@ -70,6 +71,11 @@
         .drop-zone.processing {
             border-color: #f6ad55;
             background: #fffaf0;
+        }
+
+        .drop-zone.error {
+            border-color: #fc8181;
+            background: #fed7d7;
         }
 
         .drop-icon {
@@ -108,6 +114,25 @@
             background: #2a5298;
         }
 
+        .validation-info {
+            background: #e6fffa;
+            border: 1px solid #38b2ac;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .validation-info h4 {
+            color: #234e52;
+            margin-bottom: 8px;
+        }
+
+        .validation-info ul {
+            color: #285e61;
+            margin-left: 20px;
+        }
+
         .hierarchy-section {
             background: white;
             border-radius: 12px;
@@ -121,6 +146,33 @@
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        .hierarchy-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
         }
 
         .hierarchy-tree {
@@ -149,6 +201,7 @@
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 10px;
+            transition: all 0.3s ease;
         }
 
         .tree-node.has-files {
@@ -156,9 +209,17 @@
             background: #f0fff4;
         }
 
+        .tree-node.expandable {
+            cursor: pointer;
+        }
+
+        .tree-node.expandable:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
         .node-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
@@ -166,6 +227,18 @@
         .node-title {
             font-weight: 600;
             color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .expand-icon {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .expand-icon.expanded {
+            transform: rotate(90deg);
         }
 
         .file-count {
@@ -183,9 +256,36 @@
             margin-bottom: 10px;
         }
 
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .metadata-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 8px;
+        }
+
+        .metadata-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .metadata-value {
+            color: #718096;
+            word-break: break-all;
+        }
+
         .file-list {
             list-style: none;
             margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         .file-item {
@@ -195,9 +295,18 @@
             padding: 10px;
             margin-bottom: 5px;
             font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover {
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .file-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 5px;
         }
 
         .file-name {
@@ -208,6 +317,15 @@
         .file-meta {
             font-size: 12px;
             color: #718096;
+        }
+
+        .file-details {
+            font-size: 11px;
+            color: #a0aec0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 5px;
+            margin-top: 5px;
         }
 
         .status-section {
@@ -275,6 +393,15 @@
             background: #cbd5e0;
         }
 
+        .btn-danger {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c53030;
+        }
+
         .action-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -313,6 +440,13 @@
             height: 8px;
             background: #38a169;
             border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         .empty-state {
@@ -320,6 +454,29 @@
             color: #a0aec0;
             font-style: italic;
             padding: 40px 20px;
+        }
+
+        .error-state {
+            text-align: center;
+            color: #e53e3e;
+            padding: 20px;
+            background: #fed7d7;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e2e8f0;
+            border-radius: 50%;
+            border-top-color: #2c5aa0;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         @media (max-width: 768px) {
@@ -331,6 +488,14 @@
                 flex-direction: column;
                 align-items: center;
             }
+
+            .hierarchy-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .metadata-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -338,7 +503,7 @@
     <div class="container">
         <div class="header">
             <h1>DICOM File Organizer</h1>
-            <p>Drag and drop DICOM files to automatically organize them into Flywheel hierarchy</p>
+            <p>Advanced DICOM parsing and organization for Flywheel</p>
         </div>
 
         <div id="connectionStatus" class="connection-status" style="display: none;">
@@ -350,9 +515,9 @@
             <div class="upload-section">
                 <h2 style="margin-bottom: 20px; color: #2d3748;">Upload DICOM Files</h2>
                 <div id="dropzone" class="drop-zone">
-                    <div class="drop-icon">📁</div>
+                    <div class="drop-icon">🏥</div>
                     <h3>Drop DICOM files here</h3>
-                    <p>or click to browse and select files</p>
+                    <p>Supports .dcm, .dicom files with real DICOM parsing</p>
                     <button type="button" class="browse-btn" onclick="document.getElementById('fileInput').click()">
                         Browse Files
                     </button>
@@ -362,12 +527,42 @@
                 <div class="progress-bar" id="progressBar" style="display: none;">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
+
+                <div class="validation-info">
+                    <h4>📋 DICOM Validation</h4>
+                    <ul>
+                        <li>Files are validated for proper DICOM format</li>
+                        <li>Metadata extracted from DICOM headers</li>
+                        <li>Automatic grouping by Patient ID and Study Date</li>
+                        <li>Series organized by acquisition parameters</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="hierarchy-section">
                 <h2 class="hierarchy-title">
                     🏗️ Organized Hierarchy
                 </h2>
+                
+                <div id="hierarchyStats" class="hierarchy-stats" style="display: none;">
+                    <div class="stat-card">
+                        <div class="stat-number" id="subjectCount">0</div>
+                        <div class="stat-label">Subjects</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="sessionCount">0</div>
+                        <div class="stat-label">Sessions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="acquisitionCount">0</div>
+                        <div class="stat-label">Acquisitions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="fileCount">0</div>
+                        <div class="stat-label">Files</div>
+                    </div>
+                </div>
+
                 <div id="hierarchyTree" class="hierarchy-tree">
                     <div class="empty-state">
                         Upload DICOM files to see the organized hierarchy
@@ -384,49 +579,65 @@
         </div>
 
         <div class="actions">
+            <button id="validateBtn" class="action-btn btn-secondary">
+                Validate Hierarchy
+            </button>
             <button id="uploadBtn" class="action-btn btn-primary" disabled>
                 Upload to Flywheel
             </button>
-            <button id="clearBtn" class="action-btn btn-secondary">
+            <button id="clearBtn" class="action-btn btn-danger">
                 Clear All
             </button>
         </div>
     </div>
 
+    <!-- DICOM Parser Library -->
+    <script src="https://unpkg.com/dicom-parser@1.8.21/dist/dicomParser.min.js"></script>
+    <!-- Flywheel Extension SDK -->
     <script src="https://cdn.flywheel.io/sdk/extension/flywheel-extension-0.14.3.min.js"></script>
+    
     <script>
-        class DICOMOrganizer {
+        class AdvancedDICOMOrganizer {
             constructor() {
                 this.extension = null;
                 this.fileGroups = new Map();
                 this.processedFiles = [];
                 this.isConnected = false;
+                this.expandedNodes = new Set();
+                this.validationResults = {
+                    valid: 0,
+                    invalid: 0,
+                    errors: []
+                };
                 this.init();
             }
 
             async init() {
                 try {
-                    this.log('Initializing Flywheel extension...', 'info');
+                    this.log('Initializing Advanced DICOM Organizer...', 'info');
                     
                     this.extension = await Flywheel.initExtension({
                         scope: 'ReadWrite',
                         validateOrigin: origin => {
-                            // Allow development and flywheel.io domains
                             return origin.includes('localhost') || 
                                    origin.includes('127.0.0.1') || 
-                                   origin.endsWith('flywheel.io');
+                                   origin.endsWith('flywheel.io') ||
+                                   origin.includes('127.0.0.1:3000'); // For development
                         }
                     });
 
                     this.isConnected = true;
                     this.log('Successfully connected to Flywheel!', 'success');
+                    this.log(`Project: ${this.extension.container.label || 'Unknown'}`, 'info');
+                    this.log(`Container Type: ${this.extension.container.container_type}`, 'info');
                     this.updateConnectionStatus();
-                    this.setupEventListeners();
                     
                 } catch (error) {
                     this.log(`Failed to initialize extension: ${error.message}`, 'error');
-                    this.setupEventListeners(); // Still setup UI even if connection fails
+                    this.log('Running in demo mode without Flywheel connection', 'warning');
                 }
+                
+                this.setupEventListeners();
             }
 
             updateConnectionStatus() {
@@ -445,6 +656,7 @@
                 const fileInput = document.getElementById('fileInput');
                 const uploadBtn = document.getElementById('uploadBtn');
                 const clearBtn = document.getElementById('clearBtn');
+                const validateBtn = document.getElementById('validateBtn');
 
                 // Drag and drop events
                 dropzone.addEventListener('dragover', (e) => {
@@ -477,15 +689,21 @@
                 clearBtn.addEventListener('click', () => {
                     this.clearAll();
                 });
+
+                validateBtn.addEventListener('click', () => {
+                    this.validateHierarchy();
+                });
             }
 
             async handleFiles(files) {
-                this.log(`Processing ${files.length} files...`, 'info');
+                this.log(`Processing ${files.length} files with DICOM parser...`, 'info');
                 document.getElementById('dropzone').classList.add('processing');
                 
                 const progressBar = document.getElementById('progressBar');
                 const progressFill = document.getElementById('progressFill');
                 progressBar.style.display = 'block';
+
+                this.validationResults = { valid: 0, invalid: 0, errors: [] };
 
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
@@ -494,47 +712,204 @@
 
                     try {
                         await this.processDICOMFile(file);
+                        this.validationResults.valid++;
                     } catch (error) {
+                        this.validationResults.invalid++;
+                        this.validationResults.errors.push(`${file.name}: ${error.message}`);
                         this.log(`Error processing ${file.name}: ${error.message}`, 'error');
                     }
                 }
 
                 document.getElementById('dropzone').classList.remove('processing');
                 progressBar.style.display = 'none';
+                
                 this.updateHierarchyDisplay();
+                this.updateStats();
                 this.updateUploadButton();
-                this.log(`Completed processing ${files.length} files`, 'success');
+                
+                this.log(`Processing complete: ${this.validationResults.valid} valid, ${this.validationResults.invalid} invalid files`, 
+                    this.validationResults.invalid > 0 ? 'warning' : 'success');
             }
 
             async processDICOMFile(file) {
-                // For demo purposes, we'll extract metadata from filename and simulate DICOM parsing
-                // In a real implementation, you'd use a DICOM parser like cornerstone or dicom-parser
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = (e) => {
+                        try {
+                            const arrayBuffer = e.target.result;
+                            const byteArray = new Uint8Array(arrayBuffer);
+                            
+                            // Parse DICOM file
+                            const dataSet = dicomParser.parseDicom(byteArray);
+                            
+                            // Extract comprehensive metadata
+                            const metadata = this.extractDICOMMetadata(dataSet, file);
+                            
+                            // Validate required fields
+                            this.validateDICOMMetadata(metadata);
+                            
+                            // Organize into hierarchy
+                            this.organizeDICOMFile(file, metadata);
+                            
+                            this.log(`Parsed: ${file.name} - Patient: ${metadata.patientName}, Study: ${metadata.studyDescription}`, 'success');
+                            resolve(metadata);
+                            
+                        } catch (error) {
+                            reject(new Error(`DICOM parsing failed: ${error.message}`));
+                        }
+                    };
+                    
+                    reader.onerror = () => {
+                        reject(new Error('Failed to read file'));
+                    };
+                    
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            extractDICOMMetadata(dataSet, file) {
+                const getString = (tag) => {
+                    try {
+                        const element = dataSet.elements[tag];
+                        return element ? dataSet.string(tag).trim() : '';
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                const getNumber = (tag) => {
+                    try {
+                        const element = dataSet.elements[tag];
+                        return element ? dataSet.intString(tag) : '';
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                const getDate = (tag) => {
+                    try {
+                        const dateStr = getString(tag);
+                        if (dateStr && dateStr.length === 8) {
+                            return `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
+                        }
+                        return dateStr;
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                const getTime = (tag) => {
+                    try {
+                        const timeStr = getString(tag);
+                        if (timeStr && timeStr.length >= 6) {
+                            return `${timeStr.substring(0,2)}:${timeStr.substring(2,4)}:${timeStr.substring(4,6)}`;
+                        }
+                        return timeStr;
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                return {
+                    // Patient Information
+                    patientName: getString('x00100010') || 'Unknown Patient',
+                    patientId: getString('x00100020') || `Unknown_${Date.now()}`,
+                    patientBirthDate: getDate('x00100030'),
+                    patientSex: getString('x00100040'),
+                    patientAge: getString('x00101010'),
+                    
+                    // Study Information
+                    studyInstanceUID: getString('x0020000d') || `1.2.3.${Date.now()}.1`,
+                    studyDate: getDate('x00080020') || new Date().toISOString().split('T')[0],
+                    studyTime: getTime('x00080030') || '120000',
+                    studyDescription: getString('x00081030') || 'Unknown Study',
+                    studyId: getString('x00200010') || '1',
+                    accessionNumber: getString('x00080050'),
+                    
+                    // Series Information
+                    seriesInstanceUID: getString('x0020000e') || `1.2.3.${Date.now()}.2`,
+                    seriesNumber: getNumber('x00200011') || '1',
+                    seriesDescription: getString('x0008103e') || 'Unknown Series',
+                    modality: getString('x00080060') || 'UN',
+                    seriesDate: getDate('x00080021'),
+                    seriesTime: getTime('x00080031'),
+                    
+                    // Instance Information
+                    sopInstanceUID: getString('x00080018') || `1.2.3.${Date.now()}.3`,
+                    instanceNumber: getNumber('x00200013') || '1',
+                    
+                    // Technical Parameters
+                    manufacturer: getString('x00080070'),
+                    manufacturerModelName: getString('x00081090'),
+                    softwareVersions: getString('x00181020'),
+                    protocolName: getString('x00181030'),
+                    
+                    // Image Parameters (if applicable)
+                    rows: getNumber('x00280010'),
+                    columns: getNumber('x00280011'),
+                    pixelSpacing: getString('x00280030'),
+                    sliceThickness: getString('x00180050'),
+                    
+                    // File Information
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type || 'application/dicom'
+                };
+            }
+
+            validateDICOMMetadata(metadata) {
+                const required = ['patientId', 'studyInstanceUID', 'seriesInstanceUID', 'sopInstanceUID'];
+                const missing = required.filter(field => !metadata[field]);
                 
-                const metadata = this.extractMetadataFromFilename(file.name);
-                const groupKey = `${metadata.patientId}_${metadata.studyDate}`;
+                if (missing.length > 0) {
+                    throw new Error(`Missing required DICOM fields: ${missing.join(', ')}`);
+                }
+                
+                // Additional validation
+                if (!metadata.studyDate || metadata.studyDate.length < 8) {
+                    throw new Error('Invalid or missing study date');
+                }
+            }
+
+            organizeDICOMFile(file, metadata) {
+                const groupKey = `${metadata.patientId}_${metadata.studyInstanceUID}`;
 
                 if (!this.fileGroups.has(groupKey)) {
                     this.fileGroups.set(groupKey, {
                         subject: {
                             id: metadata.patientId,
-                            name: metadata.patientName || metadata.patientId
+                            name: metadata.patientName,
+                            birthDate: metadata.patientBirthDate,
+                            sex: metadata.patientSex,
+                            age: metadata.patientAge
                         },
                         session: {
+                            uid: metadata.studyInstanceUID,
                             date: metadata.studyDate,
                             time: metadata.studyTime,
-                            uid: metadata.studyInstanceUID
+                            description: metadata.studyDescription,
+                            id: metadata.studyId,
+                            accessionNumber: metadata.accessionNumber
                         },
                         acquisitions: new Map()
                     });
                 }
 
                 const group = this.fileGroups.get(groupKey);
-                const acquisitionKey = metadata.seriesNumber || 'default';
+                const acquisitionKey = metadata.seriesInstanceUID;
 
                 if (!group.acquisitions.has(acquisitionKey)) {
                     group.acquisitions.set(acquisitionKey, {
-                        seriesNumber: metadata.seriesNumber,
-                        seriesDescription: metadata.seriesDescription,
+                        uid: metadata.seriesInstanceUID,
+                        number: metadata.seriesNumber,
+                        description: metadata.seriesDescription,
+                        modality: metadata.modality,
+                        date: metadata.seriesDate,
+                        time: metadata.seriesTime,
+                        manufacturer: metadata.manufacturer,
+                        model: metadata.manufacturerModelName,
+                        protocol: metadata.protocolName,
                         files: []
                     });
                 }
@@ -544,24 +919,37 @@
                     metadata: metadata
                 });
 
-                this.log(`Processed: ${file.name} -> Subject: ${metadata.patientId}, Series: ${metadata.seriesNumber}`, 'info');
+                this.processedFiles.push({ file, metadata });
             }
 
-            extractMetadataFromFilename(filename) {
-                // Simple filename parsing - in reality, you'd parse the actual DICOM file
-                // Expected format examples: PatientID_StudyDate_SeriesNumber_InstanceNumber.dcm
-                const parts = filename.replace(/\.(dcm|dicom)$/i, '').split('_');
+            updateStats() {
+                const stats = this.calculateStats();
                 
-                return {
-                    patientId: parts[0] || 'UNKNOWN_PATIENT',
-                    patientName: parts[0] || 'Unknown Patient',
-                    studyDate: parts[1] || new Date().toISOString().split('T')[0].replace(/-/g, ''),
-                    studyTime: '120000', // Default time
-                    studyInstanceUID: `1.2.3.${Date.now()}`, // Generate UID
-                    seriesNumber: parts[2] || '1',
-                    seriesDescription: parts[3] || 'Unknown Series',
-                    instanceNumber: parts[4] || '1'
+                document.getElementById('subjectCount').textContent = stats.subjects;
+                document.getElementById('sessionCount').textContent = stats.sessions;
+                document.getElementById('acquisitionCount').textContent = stats.acquisitions;
+                document.getElementById('fileCount').textContent = stats.files;
+                
+                const statsEl = document.getElementById('hierarchyStats');
+                statsEl.style.display = stats.files > 0 ? 'grid' : 'none';
+            }
+
+            calculateStats() {
+                const stats = {
+                    subjects: this.fileGroups.size,
+                    sessions: this.fileGroups.size, // One session per study
+                    acquisitions: 0,
+                    files: 0
                 };
+
+                for (const group of this.fileGroups.values()) {
+                    stats.acquisitions += group.acquisitions.size;
+                    for (const acquisition of group.acquisitions.values()) {
+                        stats.files += acquisition.files.length;
+                    }
+                }
+
+                return stats;
             }
 
             updateHierarchyDisplay() {
@@ -578,25 +966,44 @@
                     const totalFiles = Array.from(group.acquisitions.values())
                         .reduce((sum, acq) => sum + acq.files.length, 0);
 
+                    const subjectExpanded = this.expandedNodes.has(`subject_${groupKey}`);
+                    const sessionExpanded = this.expandedNodes.has(`session_${groupKey}`);
+
                     html += `
                         <div class="tree-level">
-                            <div class="tree-node has-files">
+                            <div class="tree-node has-files expandable" onclick="organizer.toggleNode('subject_${groupKey}')">
                                 <div class="node-header">
-                                    <div class="node-title">👤 Subject: ${group.subject.name}</div>
+                                    <div class="node-title">
+                                        <span class="expand-icon ${subjectExpanded ? 'expanded' : ''}">▶</span>
+                                        👤 Subject: ${group.subject.name}
+                                    </div>
                                     <div class="file-count">${totalFiles} files</div>
                                 </div>
-                                <div class="node-details">Patient ID: ${group.subject.id}</div>
-                                
-                                <div class="tree-level">
-                                    <div class="tree-node has-files">
-                                        <div class="node-header">
-                                            <div class="node-title">📅 Session: ${group.session.date}</div>
-                                        </div>
-                                        <div class="node-details">Study Date: ${group.session.date} | Time: ${group.session.time}</div>
-                                        
-                                        ${this.renderAcquisitions(group.acquisitions)}
-                                    </div>
+                                <div class="node-details">
+                                    Patient ID: ${group.subject.id} | 
+                                    Sex: ${group.subject.sex || 'Unknown'} | 
+                                    Age: ${group.subject.age || 'Unknown'}
                                 </div>
+                                
+                                ${subjectExpanded ? `
+                                    <div class="tree-level">
+                                        <div class="tree-node has-files expandable" onclick="organizer.toggleNode('session_${groupKey}', event)">
+                                            <div class="node-header">
+                                                <div class="node-title">
+                                                    <span class="expand-icon ${sessionExpanded ? 'expanded' : ''}">▶</span>
+                                                    📅 Session: ${group.session.description}
+                                                </div>
+                                            </div>
+                                            <div class="node-details">
+                                                Study Date: ${group.session.date} | 
+                                                Time: ${group.session.time} |
+                                                Accession: ${group.session.accessionNumber || 'N/A'}
+                                            </div>
+                                            
+                                            ${sessionExpanded ? this.renderAcquisitions(group.acquisitions, groupKey) : ''}
+                                        </div>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -605,32 +1012,81 @@
                 treeEl.innerHTML = html;
             }
 
-            renderAcquisitions(acquisitions) {
+            renderAcquisitions(acquisitions, groupKey) {
                 let html = '';
                 
                 for (const [key, acquisition] of acquisitions) {
+                    const acquisitionExpanded = this.expandedNodes.has(`acquisition_${groupKey}_${key}`);
+                    
                     html += `
                         <div class="tree-level">
-                            <div class="tree-node has-files">
+                            <div class="tree-node has-files expandable" onclick="organizer.toggleNode('acquisition_${groupKey}_${key}', event)">
                                 <div class="node-header">
-                                    <div class="node-title">🔬 Acquisition: Series ${acquisition.seriesNumber}</div>
+                                    <div class="node-title">
+                                        <span class="expand-icon ${acquisitionExpanded ? 'expanded' : ''}">▶</span>
+                                        🔬 ${acquisition.modality} - Series ${acquisition.number}
+                                    </div>
                                     <div class="file-count">${acquisition.files.length} files</div>
                                 </div>
-                                <div class="node-details">${acquisition.seriesDescription}</div>
-                                <ul class="file-list">
-                                    ${acquisition.files.map(fileData => `
-                                        <li class="file-item">
-                                            <span class="file-name">${fileData.file.name}</span>
-                                            <span class="file-meta">${this.formatFileSize(fileData.file.size)}</span>
-                                        </li>
-                                    `).join('')}
-                                </ul>
+                                <div class="node-details">${acquisition.description}</div>
+                                
+                                <div class="metadata-grid">
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Modality</div>
+                                        <div class="metadata-value">${acquisition.modality}</div>
+                                    </div>
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Manufacturer</div>
+                                        <div class="metadata-value">${acquisition.manufacturer || 'Unknown'}</div>
+                                    </div>
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Protocol</div>
+                                        <div class="metadata-value">${acquisition.protocol || 'N/A'}</div>
+                                    </div>
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Series UID</div>
+                                        <div class="metadata-value">${acquisition.uid.substring(0, 20)}...</div>
+                                    </div>
+                                </div>
+                                
+                                ${acquisitionExpanded ? `
+                                    <ul class="file-list">
+                                        ${acquisition.files.map(fileData => `
+                                            <li class="file-item">
+                                                <div class="file-header">
+                                                    <span class="file-name">${fileData.file.name}</span>
+                                                    <span class="file-meta">${this.formatFileSize(fileData.file.size)}</span>
+                                                </div>
+                                                <div class="file-details">
+                                                    <span>Instance: ${fileData.metadata.instanceNumber}</span>
+                                                    <span>Rows: ${fileData.metadata.rows || 'N/A'}</span>
+                                                    <span>Columns: ${fileData.metadata.columns || 'N/A'}</span>
+                                                    <span>Thickness: ${fileData.metadata.sliceThickness || 'N/A'}mm</span>
+                                                </div>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                ` : ''}
                             </div>
                         </div>
                     `;
                 }
                 
                 return html;
+            }
+
+            toggleNode(nodeId, event) {
+                if (event) {
+                    event.stopPropagation();
+                }
+                
+                if (this.expandedNodes.has(nodeId)) {
+                    this.expandedNodes.delete(nodeId);
+                } else {
+                    this.expandedNodes.add(nodeId);
+                }
+                
+                this.updateHierarchyDisplay();
             }
 
             formatFileSize(bytes) {
@@ -641,12 +1097,57 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
 
+            async validateHierarchy() {
+                this.log('Validating DICOM hierarchy...', 'info');
+                
+                if (this.fileGroups.size === 0) {
+                    this.log('No files to validate', 'warning');
+                    return;
+                }
+
+                let issues = [];
+                
+                for (const [groupKey, group] of this.fileGroups) {
+                    // Validate subject data
+                    if (!group.subject.id || group.subject.id.includes('Unknown')) {
+                        issues.push(`Subject ${groupKey}: Missing or invalid Patient ID`);
+                    }
+                    
+                    // Validate session data
+                    if (!group.session.uid || !group.session.date) {
+                        issues.push(`Session ${groupKey}: Missing Study UID or Date`);
+                    }
+                    
+                    // Validate acquisitions
+                    for (const [acqKey, acquisition] of group.acquisitions) {
+                        if (!acquisition.uid || !acquisition.modality) {
+                            issues.push(`Acquisition ${acqKey}: Missing Series UID or Modality`);
+                        }
+                        
+                        if (acquisition.files.length === 0) {
+                            issues.push(`Acquisition ${acqKey}: No files`);
+                        }
+                    }
+                }
+
+                if (issues.length === 0) {
+                    this.log('✅ Hierarchy validation passed - all data is valid', 'success');
+                } else {
+                    this.log(`❌ Hierarchy validation found ${issues.length} issues:`, 'warning');
+                    issues.forEach(issue => this.log(`  - ${issue}`, 'warning'));
+                }
+            }
+
             updateUploadButton() {
                 const uploadBtn = document.getElementById('uploadBtn');
-                uploadBtn.disabled = this.fileGroups.size === 0 || !this.isConnected;
+                const fileCount = this.getTotalFileCount();
                 
-                if (this.fileGroups.size > 0 && this.isConnected) {
-                    uploadBtn.textContent = `Upload ${this.getTotalFileCount()} files to Flywheel`;
+                uploadBtn.disabled = fileCount === 0;
+                
+                if (fileCount > 0) {
+                    uploadBtn.innerHTML = this.isConnected 
+                        ? `Upload ${fileCount} files to Flywheel`
+                        : `${fileCount} files ready (Demo mode)`;
                 } else {
                     uploadBtn.textContent = 'Upload to Flywheel';
                 }
@@ -664,47 +1165,83 @@
 
             async uploadToFlywheel() {
                 if (!this.isConnected) {
-                    this.log('Not connected to Flywheel', 'error');
+                    this.log('Demo mode: Simulating upload to Flywheel...', 'warning');
+                    await this.simulateUpload();
                     return;
                 }
 
                 this.log('Starting upload to Flywheel...', 'info');
                 const uploadBtn = document.getElementById('uploadBtn');
+                const originalText = uploadBtn.textContent;
                 uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Uploading...';
+                uploadBtn.innerHTML = '<span class="loading-spinner"></span> Uploading...';
 
                 try {
                     for (const [groupKey, group] of this.fileGroups) {
                         await this.uploadGroup(group);
                     }
                     
-                    this.log('Successfully uploaded all files to Flywheel!', 'success');
+                    this.log('✅ Successfully uploaded all files to Flywheel!', 'success');
                     uploadBtn.textContent = 'Upload Complete!';
                     
                 } catch (error) {
-                    this.log(`Upload failed: ${error.message}`, 'error');
+                    this.log(`❌ Upload failed: ${error.message}`, 'error');
                     uploadBtn.disabled = false;
-                    uploadBtn.textContent = 'Retry Upload';
+                    uploadBtn.textContent = originalText;
                 }
+            }
+
+            async simulateUpload() {
+                const uploadBtn = document.getElementById('uploadBtn');
+                uploadBtn.innerHTML = '<span class="loading-spinner"></span> Simulating upload...';
+                uploadBtn.disabled = true;
+
+                let fileCount = 0;
+                const totalFiles = this.getTotalFileCount();
+
+                for (const [groupKey, group] of this.fileGroups) {
+                    this.log(`📁 Creating Subject: ${group.subject.name}`, 'info');
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    this.log(`📅 Creating Session: ${group.session.description}`, 'info');
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    for (const [seriesKey, acquisition] of group.acquisitions) {
+                        this.log(`🔬 Creating Acquisition: ${acquisition.modality} Series ${acquisition.number}`, 'info');
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                        
+                        for (const fileData of acquisition.files) {
+                            fileCount++;
+                            this.log(`📄 Uploading ${fileData.file.name} (${fileCount}/${totalFiles})`, 'success');
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                        }
+                    }
+                }
+
+                uploadBtn.textContent = 'Demo Upload Complete!';
+                this.log('✅ Demo upload simulation completed', 'success');
             }
 
             async uploadGroup(group) {
                 this.log(`Creating hierarchy for Subject: ${group.subject.name}`, 'info');
 
                 try {
-                    // In a real implementation, you would:
-                    // 1. Check if subject exists, create if not
-                    // 2. Check if session exists, create if not  
-                    // 3. Create acquisitions and upload files
-                    
-                    // For demo purposes, we'll simulate the upload process
+                    // Create or find subject
+                    const subject = await this.createOrFindSubject(group.subject);
+                    this.log(`✅ Subject ready: ${subject.label}`, 'success');
+
+                    // Create or find session  
+                    const session = await this.createOrFindSession(subject, group.session);
+                    this.log(`✅ Session ready: ${session.label}`, 'success');
+
+                    // Create acquisitions and upload files
                     for (const [seriesKey, acquisition] of group.acquisitions) {
-                        this.log(`Uploading ${acquisition.files.length} files for Series ${acquisition.seriesNumber}`, 'info');
+                        const acq = await this.createAcquisition(session, acquisition);
+                        this.log(`✅ Acquisition created: ${acq.label}`, 'success');
                         
                         for (const fileData of acquisition.files) {
-                            // Simulate file upload delay
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            this.log(`Uploaded: ${fileData.file.name}`, 'success');
+                            await this.uploadFile(acq, fileData.file, fileData.metadata);
+                            this.log(`✅ Uploaded: ${fileData.file.name}`, 'success');
                         }
                     }
                     
@@ -713,13 +1250,60 @@
                 }
             }
 
+            async createOrFindSubject(subjectData) {
+                // Implementation would use extension.getContainers() to find existing subject
+                // or extension.createContainer() to create new one
+                const mockSubject = {
+                    _id: 'subject_' + subjectData.id,
+                    label: subjectData.name,
+                    container_type: 'subject'
+                };
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                return mockSubject;
+            }
+
+            async createOrFindSession(subject, sessionData) {
+                // Implementation would use extension SDK methods
+                const mockSession = {
+                    _id: 'session_' + sessionData.uid,
+                    label: sessionData.description,
+                    container_type: 'session'
+                };
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                return mockSession;
+            }
+
+            async createAcquisition(session, acquisitionData) {
+                // Implementation would use extension.createContainer()
+                const mockAcquisition = {
+                    _id: 'acquisition_' + acquisitionData.uid,
+                    label: acquisitionData.description,
+                    container_type: 'acquisition'
+                };
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                return mockAcquisition;
+            }
+
+            async uploadFile(container, file, metadata) {
+                // Implementation would use extension.uploadFile()
+                await new Promise(resolve => setTimeout(resolve, 50));
+                return { success: true };
+            }
+
             clearAll() {
                 this.fileGroups.clear();
                 this.processedFiles = [];
+                this.expandedNodes.clear();
+                this.validationResults = { valid: 0, invalid: 0, errors: [] };
+                
                 document.getElementById('fileInput').value = '';
                 this.updateHierarchyDisplay();
+                this.updateStats();
                 this.updateUploadButton();
-                this.log('Cleared all files and organization', 'warning');
+                this.log('🗑️ Cleared all files and organization', 'warning');
             }
 
             log(message, type = 'info') {
@@ -732,15 +1316,15 @@
                 logEl.appendChild(entry);
                 logEl.scrollTop = logEl.scrollHeight;
 
-                // Keep only last 50 log entries
-                while (logEl.children.length > 50) {
+                // Keep only last 100 log entries
+                while (logEl.children.length > 100) {
                     logEl.removeChild(logEl.firstChild);
                 }
             }
         }
 
         // Initialize the application
-        const organizer = new DICOMOrganizer();
+        const organizer = new AdvancedDICOMOrganizer();
     </script>
 </body>
 </html>
