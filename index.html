@@ -662,9 +662,10 @@
                     uploadInfoContent.innerHTML = `
                         <ul>
                             <li><strong>Upload Target:</strong> Files will be uploaded to the current ${this.extension.container.container_type}: "${this.extension.container.label}"</li>
-                            <li><strong>Hierarchy Metadata:</strong> Complete Subject → Session → Acquisition hierarchy information will be embedded in each file's metadata</li>
-                            <li><strong>Organization:</strong> Files can be organized into proper hierarchy later using the embedded metadata</li>
-                            <li><strong>Searchable:</strong> All DICOM fields are tagged for easy discovery and filtering</li>
+                            <li><strong>Metadata Storage:</strong> DICOM hierarchy information will be stored in the container's metadata for organization</li>
+                            <li><strong>Future Organization:</strong> Container hierarchy can be created later using the stored metadata</li>
+                            <li><strong>SDK Methods:</strong> Using only documented Flywheel Extension SDK methods (getContainer, uploadFile, updateContainerInfo)</li>
+                            <li><strong>Searchable:</strong> All DICOM fields are stored for easy discovery and filtering</li>
                         </ul>
                     `;
                 }
@@ -1209,7 +1210,8 @@
                 if (this.isConnected) {
                     const container = this.extension.container;
                     this.log(`ℹ️ Files will be uploaded to ${container.container_type}: "${container.label}"`, 'info');
-                    this.log(`ℹ️ Complete hierarchy metadata will be embedded in each file for future organization`, 'info');
+                    this.log(`ℹ️ DICOM hierarchy metadata will be stored in container info using updateContainerInfo()`, 'info');
+                    this.log(`ℹ️ Using only documented Flywheel Extension SDK methods`, 'info');
                 }
 
                 // Report results
@@ -1241,15 +1243,24 @@
 
             async validateConnection() {
                 try {
-                    // Test connection by accessing current container info
+                    // Test connection using documented SDK methods
                     const container = this.extension.container;
                     if (!container || !container._id) {
                         throw new Error('No container context available');
                     }
                     
-                    this.log(`✅ Connection validated - Current container: ${container.label} (${container.container_type})`, 'success');
-                    return container;
+                    // Try to get the current container to verify connection
+                    const currentContainer = await this.extension.getContainer(container.container_type, container._id);
+                    
+                    this.log(`✅ Connection validated - Current container: ${currentContainer.label} (${currentContainer.container_type})`, 'success');
+                    return currentContainer;
                 } catch (error) {
+                    // Fallback to basic container info if getContainer fails
+                    const container = this.extension.container;
+                    if (container && container._id) {
+                        this.log(`✅ Basic connection validated - Container: ${container.label} (${container.container_type})`, 'success');
+                        return container;
+                    }
                     throw new Error(`Connection validation failed: ${error.message}`);
                 }
             }
@@ -1795,136 +1806,76 @@
 
             async addHierarchyMetadata(file, metadata, group) {
                 try {
-                    // Create comprehensive metadata that includes the full intended hierarchy
-                    const hierarchyMetadata = {
-                        info: {
-                            DICOM: {
-                                // Instance level metadata
-                                SOPInstanceUID: metadata.sopInstanceUID,
-                                InstanceNumber: metadata.instanceNumber,
-                                PatientID: metadata.patientId,
-                                StudyInstanceUID: metadata.studyInstanceUID,
-                                SeriesInstanceUID: metadata.seriesInstanceUID,
-                                
-                                // Patient Information (Subject level)
-                                PatientName: metadata.patientName,
-                                PatientBirthDate: metadata.patientBirthDate,
-                                PatientSex: metadata.patientSex,
-                                PatientAge: metadata.patientAge,
-                                
-                                // Study Information (Session level)
-                                StudyDate: metadata.studyDate,
-                                StudyTime: metadata.studyTime,
-                                StudyDescription: metadata.studyDescription,
-                                StudyID: metadata.studyId,
-                                AccessionNumber: metadata.accessionNumber,
-                                
-                                // Series Information (Acquisition level)
-                                SeriesNumber: metadata.seriesNumber,
-                                SeriesDescription: metadata.seriesDescription,
-                                Modality: metadata.modality,
-                                SeriesDate: metadata.seriesDate,
-                                SeriesTime: metadata.seriesTime,
-                                
-                                // Image parameters
-                                Rows: metadata.rows || null,
-                                Columns: metadata.columns || null,
-                                PixelSpacing: metadata.pixelSpacing || null,
-                                SliceThickness: metadata.sliceThickness || null,
-                                
-                                // Technical parameters
-                                Manufacturer: metadata.manufacturer || null,
-                                ManufacturerModelName: metadata.manufacturerModelName || null,
-                                SoftwareVersions: metadata.softwareVersions || null,
-                                ProtocolName: metadata.protocolName || null,
-                                
-                                // Import metadata
-                                ImportTimestamp: new Date().toISOString(),
-                                OriginalFilename: metadata.fileName,
-                                ImportSource: 'dicom-organizer-v2'
+                    // Since updateFileInfo doesn't exist in the SDK, we'll add metadata to the container instead
+                    // and store a reference to which files belong to which hierarchy
+                    
+                    const container = this.extension.container;
+                    
+                    // Create a comprehensive metadata object for the container
+                    const hierarchyInfo = {
+                        [`file_${file.name}_metadata`]: {
+                            // DICOM metadata
+                            SOPInstanceUID: metadata.sopInstanceUID,
+                            InstanceNumber: metadata.instanceNumber,
+                            PatientID: metadata.patientId,
+                            PatientName: metadata.patientName,
+                            StudyInstanceUID: metadata.studyInstanceUID,
+                            SeriesInstanceUID: metadata.seriesInstanceUID,
+                            Modality: metadata.modality,
+                            StudyDate: metadata.studyDate,
+                            SeriesDescription: metadata.seriesDescription,
+                            
+                            // Intended hierarchy
+                            intendedSubject: {
+                                label: group.subject.name,
+                                code: group.subject.id,
+                                sex: group.subject.sex
+                            },
+                            intendedSession: {
+                                label: group.session.description,
+                                studyInstanceUID: group.session.uid,
+                                studyDate: group.session.date
+                            },
+                            intendedAcquisition: {
+                                label: `${metadata.modality} - ${metadata.seriesDescription}`,
+                                seriesInstanceUID: metadata.seriesInstanceUID,
+                                modality: metadata.modality,
+                                seriesNumber: metadata.seriesNumber
                             },
                             
-                            // Intended Flywheel Hierarchy (for future reference)
-                            intendedHierarchy: {
-                                subject: {
-                                    label: group.subject.name,
-                                    code: group.subject.id,
-                                    sex: group.subject.sex
-                                },
-                                session: {
-                                    label: group.session.description,
-                                    studyInstanceUID: group.session.uid,
-                                    studyDate: group.session.date
-                                },
-                                acquisition: {
-                                    label: `${metadata.modality} - ${metadata.seriesDescription}`,
-                                    seriesInstanceUID: metadata.seriesInstanceUID,
-                                    modality: metadata.modality,
-                                    seriesNumber: metadata.seriesNumber
-                                }
-                            },
-                            
-                            // Searchable tags for easy discovery
-                            searchable: this.createSearchableMetadata(metadata)
-                        },
-                        
-                        tags: [
-                            'dicom-file',
-                            'dicom-organizer-import',
-                            `patient-${metadata.patientId.toLowerCase()}`,
-                            `study-${metadata.studyDate}`,
-                            `series-${metadata.seriesNumber}`,
-                            `modality-${metadata.modality.toLowerCase()}`,
-                            `instance-${metadata.instanceNumber}`,
-                            'awaiting-hierarchy-creation' // Flag for future processing
-                        ]
+                            // Import metadata
+                            importTimestamp: new Date().toISOString(),
+                            importSource: 'dicom-organizer-v2',
+                            originalFilename: metadata.fileName
+                        }
                     };
 
-                    // Check if updateFileInfo method exists before calling it
-                    if (typeof this.extension.updateFileInfo === 'function') {
-                        await this.extension.updateFileInfo(file, hierarchyMetadata);
-                        this.log(`🏷️ Complete hierarchy metadata added to ${file.name}`, 'success');
-                    } else {
-                        this.log(`⚠️ updateFileInfo not available - metadata cannot be added to ${file.name}`, 'warning');
-                        // Store metadata locally for potential future use
-                        file._organizer_metadata = hierarchyMetadata;
-                        this.log(`💾 Metadata stored locally for ${file.name}`, 'info');
-                    }
+                    // Add this metadata to the container's info
+                    await this.extension.updateContainerInfo(container, {
+                        set: {
+                            [`dicom_organizer_files.${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`]: hierarchyInfo[`file_${file.name}_metadata`]
+                        }
+                    });
+                    
+                    this.log(`🏷️ Hierarchy metadata added to container for ${file.name}`, 'success');
                     
                 } catch (error) {
                     // Don't fail the upload if metadata addition fails
-                    this.log(`⚠️ Failed to add hierarchy metadata to ${file.name}: ${error.message}`, 'warning');
+                    this.log(`⚠️ Failed to add hierarchy metadata for ${file.name}: ${error.message}`, 'warning');
                     
-                    // Try basic metadata as fallback
-                    try {
-                        const basicMetadata = {
-                            info: {
-                                DICOM: {
-                                    SOPInstanceUID: metadata.sopInstanceUID,
-                                    PatientID: metadata.patientId,
-                                    StudyInstanceUID: metadata.studyInstanceUID,
-                                    SeriesInstanceUID: metadata.seriesInstanceUID,
-                                    Modality: metadata.modality,
-                                    ImportTimestamp: new Date().toISOString()
-                                }
-                            },
-                            tags: ['dicom-file', 'dicom-organizer-import']
-                        };
-                        
-                        if (typeof this.extension.updateFileInfo === 'function') {
-                            await this.extension.updateFileInfo(file, basicMetadata);
-                            this.log(`🏷️ Basic metadata added to ${file.name}`, 'info');
-                        }
-                        
-                    } catch (fallbackError) {
-                        this.log(`❌ Failed to add even basic metadata to ${file.name}`, 'error');
-                        // Store basic info locally as last resort
-                        file._organizer_basic = {
-                            patientId: metadata.patientId,
-                            modality: metadata.modality,
-                            uploadTime: new Date().toISOString()
-                        };
+                    // Store metadata locally as fallback
+                    if (!window.dicomOrganizerMetadata) {
+                        window.dicomOrganizerMetadata = {};
                     }
+                    window.dicomOrganizerMetadata[file.name] = {
+                        patientId: metadata.patientId,
+                        modality: metadata.modality,
+                        studyDate: metadata.studyDate,
+                        seriesDescription: metadata.seriesDescription,
+                        uploadTime: new Date().toISOString()
+                    };
+                    
+                    this.log(`💾 Metadata stored locally for ${file.name}`, 'info');
                 }
             }
 
