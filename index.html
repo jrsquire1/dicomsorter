@@ -1470,14 +1470,14 @@
                 const totalFiles = this.getTotalFileCount();
 
                 for (const [groupKey, group] of this.fileGroups) {
-                    this.log(`📁 Creating Subject: ${group.subject.name}`, 'info');
+                    this.log(`📁 Processing Subject: ${group.subject.name}`, 'info');
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    this.log(`📅 Creating Session: ${group.session.description}`, 'info');
+                    this.log(`📅 Processing Session: ${group.session.description}`, 'info');
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
                     for (const [seriesKey, acquisition] of group.acquisitions) {
-                        this.log(`🔬 Creating Acquisition: ${acquisition.modality} Series ${acquisition.number}`, 'info');
+                        this.log(`🔬 Processing Acquisition: ${acquisition.modality} Series ${acquisition.number}`, 'info');
                         await new Promise(resolve => setTimeout(resolve, 150));
                         
                         for (const fileData of acquisition.files) {
@@ -1739,47 +1739,42 @@
                 try {
                     this.log(`📤 Uploading ${file.name} (${this.formatFileSize(file.size)}) with hierarchy info`, 'info');
                     
-                    // Upload file with complete hierarchy metadata embedded
-                    return await this.withTimeout(
-                        this.retryOperation(async () => {
-                            return new Promise((resolve, reject) => {
-                                const uploadObservable = this.extension.uploadFile(container, file);
-                                let lastProgressUpdate = 0;
-                                
-                                uploadObservable.subscribe({
-                                    next: event => {
-                                        if (event.type === 'progress') {
-                                            const percent = Math.round((event.loaded / event.total) * 100);
-                                            
-                                            // Only log progress every 25% to avoid spam
-                                            if (percent >= lastProgressUpdate + 25 || percent === 100) {
-                                                this.log(`📊 ${file.name}: ${percent}% (${this.formatFileSize(event.loaded)}/${this.formatFileSize(event.total)})`, 'info');
-                                                lastProgressUpdate = percent;
-                                            }
-                                            
-                                        } else if (event.type === 'response') {
-                                            // File upload complete, now add comprehensive metadata
-                                            this.addHierarchyMetadata(event.file, metadata, group)
-                                                .then(() => {
-                                                    this.log(`✅ ${file.name} uploaded with full hierarchy metadata`, 'success');
-                                                    resolve(event.file);
-                                                })
-                                                .catch(error => {
-                                                    // Don't fail upload if metadata fails
-                                                    this.log(`⚠️ ${file.name} uploaded but metadata failed: ${error.message}`, 'warning');
-                                                    resolve(event.file);
-                                                });
-                                        }
-                                    },
-                                    error: error => {
-                                        this.log(`❌ Upload failed for ${file.name}: ${error.message}`, 'error');
-                                        reject(new Error(`File upload failed: ${error.message}`));
+                    // Simple upload without complex retry/timeout logic
+                    return new Promise((resolve, reject) => {
+                        const uploadObservable = this.extension.uploadFile(container, file);
+                        let lastProgressUpdate = 0;
+                        
+                        uploadObservable.subscribe({
+                            next: event => {
+                                if (event.type === 'progress') {
+                                    const percent = Math.round((event.loaded / event.total) * 100);
+                                    
+                                    // Only log progress every 25% to avoid spam
+                                    if (percent >= lastProgressUpdate + 25 || percent === 100) {
+                                        this.log(`📊 ${file.name}: ${percent}% (${this.formatFileSize(event.loaded)}/${this.formatFileSize(event.total)})`, 'info');
+                                        lastProgressUpdate = percent;
                                     }
-                                });
-                            });
-                        }, 2, 2000), // 2 retries with 2 second base delay
-                        60000 // 60 second timeout for large files
-                    );
+                                    
+                                } else if (event.type === 'response') {
+                                    // File upload complete, now add comprehensive metadata
+                                    this.addHierarchyMetadata(event.file, metadata, group)
+                                        .then(() => {
+                                            this.log(`✅ ${file.name} uploaded with full hierarchy metadata`, 'success');
+                                            resolve(event.file);
+                                        })
+                                        .catch(error => {
+                                            // Don't fail upload if metadata fails
+                                            this.log(`⚠️ ${file.name} uploaded but metadata failed: ${error.message}`, 'warning');
+                                            resolve(event.file);
+                                        });
+                                }
+                            },
+                            error: error => {
+                                this.log(`❌ Upload failed for ${file.name}: ${error.message}`, 'error');
+                                reject(new Error(`File upload failed: ${error.message}`));
+                            }
+                        });
+                    });
                     
                 } catch (error) {
                     // Enhanced error context
@@ -1885,8 +1880,16 @@
                         ]
                     };
 
-                    await this.extension.updateFileInfo(file, hierarchyMetadata);
-                    this.log(`🏷️ Complete hierarchy metadata added to ${file.name}`, 'success');
+                    // Check if updateFileInfo method exists before calling it
+                    if (typeof this.extension.updateFileInfo === 'function') {
+                        await this.extension.updateFileInfo(file, hierarchyMetadata);
+                        this.log(`🏷️ Complete hierarchy metadata added to ${file.name}`, 'success');
+                    } else {
+                        this.log(`⚠️ updateFileInfo not available - metadata cannot be added to ${file.name}`, 'warning');
+                        // Store metadata locally for potential future use
+                        file._organizer_metadata = hierarchyMetadata;
+                        this.log(`💾 Metadata stored locally for ${file.name}`, 'info');
+                    }
                     
                 } catch (error) {
                     // Don't fail the upload if metadata addition fails
@@ -1908,11 +1911,19 @@
                             tags: ['dicom-file', 'dicom-organizer-import']
                         };
                         
-                        await this.extension.updateFileInfo(file, basicMetadata);
-                        this.log(`🏷️ Basic metadata added to ${file.name}`, 'info');
+                        if (typeof this.extension.updateFileInfo === 'function') {
+                            await this.extension.updateFileInfo(file, basicMetadata);
+                            this.log(`🏷️ Basic metadata added to ${file.name}`, 'info');
+                        }
                         
                     } catch (fallbackError) {
                         this.log(`❌ Failed to add even basic metadata to ${file.name}`, 'error');
+                        // Store basic info locally as last resort
+                        file._organizer_basic = {
+                            patientId: metadata.patientId,
+                            modality: metadata.modality,
+                            uploadTime: new Date().toISOString()
+                        };
                     }
                 }
             }
