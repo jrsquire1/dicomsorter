@@ -647,11 +647,25 @@
 
             updateConnectionStatus() {
                 const statusEl = document.getElementById('connectionStatus');
+                const uploadInfoEl = document.getElementById('uploadInfo');
+                const uploadInfoContent = document.getElementById('uploadInfoContent');
+                
                 if (this.isConnected) {
                     statusEl.style.display = 'flex';
                     statusEl.innerHTML = `
                         <div class="status-dot"></div>
-                        <span>Connected to Flywheel - Project: ${this.extension.container.label || 'Unknown'}</span>
+                        <span>Connected to Flywheel - ${this.extension.container.container_type}: ${this.extension.container.label || 'Unknown'}</span>
+                    `;
+                    
+                    // Show upload method info
+                    uploadInfoEl.style.display = 'block';
+                    uploadInfoContent.innerHTML = `
+                        <ul>
+                            <li><strong>Upload Target:</strong> Files will be uploaded to the current ${this.extension.container.container_type}: "${this.extension.container.label}"</li>
+                            <li><strong>Hierarchy Metadata:</strong> Complete Subject → Session → Acquisition hierarchy information will be embedded in each file's metadata</li>
+                            <li><strong>Organization:</strong> Files can be organized into proper hierarchy later using the embedded metadata</li>
+                            <li><strong>Searchable:</strong> All DICOM fields are tagged for easy discovery and filtering</li>
+                        </ul>
                     `;
                 }
             }
@@ -1118,8 +1132,7 @@
                     issues.push('Not connected to Flywheel instance');
                 } else {
                     try {
-                        await this.validateConnection();
-                        const container = this.extension.container;
+                        const container = await this.validateConnection();
                         this.log(`✅ Connected to ${container.container_type}: ${container.label}`, 'success');
                         
                         // Check upload permissions
@@ -1228,12 +1241,13 @@
 
             async validateConnection() {
                 try {
-                    // Test connection by getting current container info
-                    const container = await this.extension.getContainer(
-                        this.extension.container.container_type, 
-                        this.extension.container._id
-                    );
-                    this.log(`✅ Connection validated - Current container: ${container.label}`, 'success');
+                    // Test connection by accessing current container info
+                    const container = this.extension.container;
+                    if (!container || !container._id) {
+                        throw new Error('No container context available');
+                    }
+                    
+                    this.log(`✅ Connection validated - Current container: ${container.label} (${container.container_type})`, 'success');
                     return container;
                 } catch (error) {
                     throw new Error(`Connection validation failed: ${error.message}`);
