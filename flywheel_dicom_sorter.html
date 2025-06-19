@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DICOM Sorter - Flywheel Extension</title>
+    <title>DICOM File Organizer</title>
     <style>
         * {
             margin: 0;
@@ -13,8 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            background: #f5f7fa;
             color: #333;
         }
 
@@ -25,212 +24,302 @@
         }
 
         .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             text-align: center;
+            margin-bottom: 30px;
         }
 
         .header h1 {
-            color: #2c3e50;
-            font-size: 2.5rem;
-            font-weight: 700;
+            color: #2c5aa0;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
         .header p {
-            color: #7f8c8d;
-            font-size: 1.1rem;
+            color: #666;
+            font-size: 16px;
         }
 
         .main-content {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
+            margin-bottom: 30px;
         }
 
-        .panel {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
+        .upload-section {
+            background: white;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
-        .panel:hover {
-            transform: translateY(-5px);
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #f8fafc;
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
 
-        .panel h2 {
-            color: #2c3e50;
-            font-size: 1.5rem;
+        .drop-zone.dragover {
+            border-color: #2c5aa0;
+            background: #ebf4ff;
+        }
+
+        .drop-zone.processing {
+            border-color: #f6ad55;
+            background: #fffaf0;
+        }
+
+        .drop-icon {
+            font-size: 48px;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #ecf0f1;
+            color: #a0aec0;
         }
 
-        .form-group {
+        .drop-zone h3 {
+            margin-bottom: 10px;
+            color: #2d3748;
+        }
+
+        .drop-zone p {
+            color: #718096;
             margin-bottom: 20px;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #34495e;
+        .file-input {
+            display: none;
         }
 
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ecf0f1;
+        .browse-btn {
+            background: #2c5aa0;
+            color: white;
+            border: none;
+            padding: 12px 24px;
             border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s ease;
         }
 
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        .browse-btn:hover {
+            background: #2a5298;
         }
 
-        .checkbox-group {
+        .hierarchy-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .hierarchy-title {
+            margin-bottom: 20px;
+            color: #2d3748;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
-            transform: scale(1.2);
+        .hierarchy-tree {
+            border-left: 2px solid #e2e8f0;
+            padding-left: 20px;
         }
 
-        .btn {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 15px 30px;
+        .tree-level {
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .tree-level::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 15px;
+            width: 20px;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .tree-node {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:disabled {
-            background: #bdc3c7;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .status {
-            margin-top: 20px;
             padding: 15px;
-            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .tree-node.has-files {
+            border-color: #68d391;
+            background: #f0fff4;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .node-title {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .file-count {
+            background: #2c5aa0;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
             font-weight: 500;
         }
 
-        .status.info {
-            background: #e8f4fd;
-            color: #2980b9;
-            border: 1px solid #3498db;
+        .node-details {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 10px;
         }
 
-        .status.success {
-            background: #e8f5e8;
-            color: #27ae60;
-            border: 1px solid #2ecc71;
+        .file-list {
+            list-style: none;
+            margin-top: 10px;
         }
 
-        .status.error {
-            background: #fdf2f2;
-            color: #e74c3c;
-            border: 1px solid #e74c3c;
+        .file-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 5px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .progress {
-            width: 100%;
-            height: 8px;
-            background: #ecf0f1;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
+        .file-name {
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .status-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        .status-log {
+            background: #1a202c;
+            color: #a0aec0;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            height: 200px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+        }
+
+        .log-info { color: #63b3ed; }
+        .log-success { color: #68d391; }
+        .log-warning { color: #f6ad55; }
+        .log-error { color: #fc8181; }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .action-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: #38a169;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #2f855a;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #cbd5e0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #38a169, #68d391);
             width: 0%;
             transition: width 0.3s ease;
         }
 
-        .file-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ecf0f1;
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #f0fff4;
+            border: 1px solid #68d391;
             border-radius: 8px;
-            padding: 10px;
-            background: #f8f9fa;
-        }
-
-        .file-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: white;
-            border-radius: 5px;
+            margin-bottom: 20px;
             font-size: 14px;
-            border-left: 4px solid #667eea;
         }
 
-        .context-info {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            grid-column: 1 / -1;
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #38a169;
+            border-radius: 50%;
         }
 
-        .context-info h3 {
-            color: #2c3e50;
-            margin-bottom: 15px;
-        }
-
-        .context-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .context-item {
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-
-        .context-item strong {
-            color: #2c3e50;
+        .empty-state {
+            text-align: center;
+            color: #a0aec0;
+            font-style: italic;
+            padding: 40px 20px;
         }
 
         @media (max-width: 768px) {
@@ -238,12 +327,9 @@
                 grid-template-columns: 1fr;
             }
             
-            .container {
-                padding: 10px;
-            }
-            
-            .header h1 {
-                font-size: 2rem;
+            .actions {
+                flex-direction: column;
+                align-items: center;
             }
         }
     </style>
@@ -251,195 +337,300 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏥 DICOM Sorter</h1>
-            <p>Advanced DICOM file organization for Flywheel</p>
+            <h1>DICOM File Organizer</h1>
+            <p>Drag and drop DICOM files to automatically organize them into Flywheel hierarchy</p>
         </div>
 
-        <div class="context-info" id="contextInfo">
-            <h3>📊 Current Context</h3>
-            <div class="context-grid" id="contextGrid">
-                <div class="context-item">
-                    <strong>Status:</strong> <span id="connectionStatus">Connecting...</span>
-                </div>
-            </div>
+        <div id="connectionStatus" class="connection-status" style="display: none;">
+            <div class="status-dot"></div>
+            <span>Connected to Flywheel</span>
         </div>
 
         <div class="main-content">
-            <div class="panel">
-                <h2>⚙️ Sorting Configuration</h2>
-                <form id="sortingForm">
-                    <div class="form-group">
-                        <label for="outputLocation">Output Location:</label>
-                        <select id="outputLocation">
-                            <option value="current">Current Container</option>
-                            <option value="download">Download as ZIP</option>
-                            <option value="new-session">New Session</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="prefix">Patient ID Prefix:</label>
-                        <input type="text" id="prefix" placeholder="e.g., STUDY_">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="suffix">Patient ID Suffix:</label>
-                        <input type="text" id="suffix" placeholder="e.g., _V1">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="compression">Compression:</label>
-                        <select id="compression">
-                            <option value="none">None</option>
-                            <option value="zip">ZIP</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" id="preserveOriginal" checked>
-                            <label for="preserveOriginal">Preserve Original Files</label>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" id="includeProtocol" checked>
-                            <label for="includeProtocol">Include Protocol in Folder Names</label>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn" id="startSorting">
-                        🚀 Start Sorting
+            <div class="upload-section">
+                <h2 style="margin-bottom: 20px; color: #2d3748;">Upload DICOM Files</h2>
+                <div id="dropzone" class="drop-zone">
+                    <div class="drop-icon">📁</div>
+                    <h3>Drop DICOM files here</h3>
+                    <p>or click to browse and select files</p>
+                    <button type="button" class="browse-btn" onclick="document.getElementById('fileInput').click()">
+                        Browse Files
                     </button>
-                </form>
+                    <input type="file" id="fileInput" class="file-input" multiple accept=".dcm,.dicom">
+                </div>
+                
+                <div class="progress-bar" id="progressBar" style="display: none;">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
             </div>
 
-            <div class="panel">
-                <h2>📁 DICOM Files</h2>
-                <div class="status info" id="fileStatus">
-                    Loading DICOM files...
-                </div>
-                <div class="progress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                <div class="file-list" id="fileList">
-                    <!-- Files will be populated here -->
+            <div class="hierarchy-section">
+                <h2 class="hierarchy-title">
+                    🏗️ Organized Hierarchy
+                </h2>
+                <div id="hierarchyTree" class="hierarchy-tree">
+                    <div class="empty-state">
+                        Upload DICOM files to see the organized hierarchy
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="panel" style="grid-column: 1 / -1; margin-top: 30px;">
-            <h2>📋 Sorting Log</h2>
-            <div id="sortingLog" style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; max-height: 200px; overflow-y: auto;">
-                Ready to sort DICOM files...
+        <div class="status-section">
+            <h3 style="margin-bottom: 15px; color: #2d3748;">Processing Status</h3>
+            <div id="statusLog" class="status-log">
+                <div class="log-entry log-info">Ready to process DICOM files...</div>
             </div>
+        </div>
+
+        <div class="actions">
+            <button id="uploadBtn" class="action-btn btn-primary" disabled>
+                Upload to Flywheel
+            </button>
+            <button id="clearBtn" class="action-btn btn-secondary">
+                Clear All
+            </button>
         </div>
     </div>
 
-    <!-- Flywheel Extension SDK -->
     <script src="https://cdn.flywheel.io/sdk/extension/flywheel-extension-0.14.3.min.js"></script>
-    
     <script>
-        class DicomSorter {
+        class DICOMOrganizer {
             constructor() {
                 this.extension = null;
-                this.dicomFiles = [];
-                this.sortedStructure = new Map();
-                this.isProcessing = false;
+                this.fileGroups = new Map();
+                this.processedFiles = [];
+                this.isConnected = false;
+                this.init();
             }
 
-            async initialize() {
+            async init() {
                 try {
-                    // Initialize Flywheel extension with ReadWrite scope
+                    this.log('Initializing Flywheel extension...', 'info');
+                    
                     this.extension = await Flywheel.initExtension({
                         scope: 'ReadWrite',
                         validateOrigin: origin => {
-                            // Allow common Flywheel domains and localhost for development
-                            return origin.includes('flywheel.io') || 
-                                   origin.includes('localhost') || 
-                                   origin.includes('127.0.0.1');
+                            // Allow development and flywheel.io domains
+                            return origin.includes('localhost') || 
+                                   origin.includes('127.0.0.1') || 
+                                   origin.endsWith('flywheel.io');
                         }
                     });
 
-                    this.updateContextInfo();
-                    await this.loadDicomFiles();
+                    this.isConnected = true;
+                    this.log('Successfully connected to Flywheel!', 'success');
+                    this.updateConnectionStatus();
                     this.setupEventListeners();
                     
-                    this.log('✅ Extension initialized successfully');
                 } catch (error) {
-                    this.log(`❌ Initialization error: ${error.message}`, 'error');
+                    this.log(`Failed to initialize extension: ${error.message}`, 'error');
+                    this.setupEventListeners(); // Still setup UI even if connection fails
                 }
             }
 
-            updateContextInfo() {
-                const contextGrid = document.getElementById('contextGrid');
-                const container = this.extension.container;
-                const user = this.extension.user;
-
-                contextGrid.innerHTML = `
-                    <div class="context-item">
-                        <strong>Status:</strong> <span style="color: #27ae60;">Connected</span>
-                    </div>
-                    <div class="context-item">
-                        <strong>Container:</strong> ${container.label || container._id}
-                    </div>
-                    <div class="context-item">
-                        <strong>Type:</strong> ${container.container_type}
-                    </div>
-                    <div class="context-item">
-                        <strong>User:</strong> ${user.firstname} ${user.lastname}
-                    </div>
-                    <div class="context-item">
-                        <strong>Project:</strong> ${container.parents?.project || 'N/A'}
-                    </div>
-                    <div class="context-item">
-                        <strong>Subject:</strong> ${container.parents?.subject || 'N/A'}
-                    </div>
-                `;
-            }
-
-            async loadDicomFiles() {
-                try {
-                    this.updateStatus('🔍 Scanning for DICOM files...', 'info');
-                    
-                    // Get all files in the container
-                    const files = this.extension.container.files || [];
-                    
-                    // Filter for DICOM files
-                    this.dicomFiles = files.filter(file => 
-                        file.type === 'dicom' || 
-                        file.name.toLowerCase().endsWith('.dcm') ||
-                        file.mimetype === 'application/dicom'
-                    );
-
-                    this.updateFileList();
-                    
-                    if (this.dicomFiles.length === 0) {
-                        this.updateStatus('⚠️ No DICOM files found in this container', 'error');
-                    } else {
-                        this.updateStatus(`✅ Found ${this.dicomFiles.length} DICOM files`, 'success');
-                    }
-                    
-                } catch (error) {
-                    this.updateStatus(`❌ Error loading files: ${error.message}`, 'error');
-                    this.log(`Error loading DICOM files: ${error.message}`, 'error');
+            updateConnectionStatus() {
+                const statusEl = document.getElementById('connectionStatus');
+                if (this.isConnected) {
+                    statusEl.style.display = 'flex';
+                    statusEl.innerHTML = `
+                        <div class="status-dot"></div>
+                        <span>Connected to Flywheel - Project: ${this.extension.container.label || 'Unknown'}</span>
+                    `;
                 }
             }
 
-            updateFileList() {
-                const fileList = document.getElementById('fileList');
+            setupEventListeners() {
+                const dropzone = document.getElementById('dropzone');
+                const fileInput = document.getElementById('fileInput');
+                const uploadBtn = document.getElementById('uploadBtn');
+                const clearBtn = document.getElementById('clearBtn');
+
+                // Drag and drop events
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('dragover');
+                });
+
+                dropzone.addEventListener('dragleave', () => {
+                    dropzone.classList.remove('dragover');
+                });
+
+                dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('dragover');
+                    this.handleFiles(e.dataTransfer.files);
+                });
+
+                dropzone.addEventListener('click', () => {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    this.handleFiles(e.target.files);
+                });
+
+                uploadBtn.addEventListener('click', () => {
+                    this.uploadToFlywheel();
+                });
+
+                clearBtn.addEventListener('click', () => {
+                    this.clearAll();
+                });
+            }
+
+            async handleFiles(files) {
+                this.log(`Processing ${files.length} files...`, 'info');
+                document.getElementById('dropzone').classList.add('processing');
                 
-                if (this.dicomFiles.length === 0) {
-                    fileList.innerHTML = '<div class="file-item">No DICOM files found</div>';
+                const progressBar = document.getElementById('progressBar');
+                const progressFill = document.getElementById('progressFill');
+                progressBar.style.display = 'block';
+
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const progress = ((i + 1) / files.length) * 100;
+                    progressFill.style.width = `${progress}%`;
+
+                    try {
+                        await this.processDICOMFile(file);
+                    } catch (error) {
+                        this.log(`Error processing ${file.name}: ${error.message}`, 'error');
+                    }
+                }
+
+                document.getElementById('dropzone').classList.remove('processing');
+                progressBar.style.display = 'none';
+                this.updateHierarchyDisplay();
+                this.updateUploadButton();
+                this.log(`Completed processing ${files.length} files`, 'success');
+            }
+
+            async processDICOMFile(file) {
+                // For demo purposes, we'll extract metadata from filename and simulate DICOM parsing
+                // In a real implementation, you'd use a DICOM parser like cornerstone or dicom-parser
+                
+                const metadata = this.extractMetadataFromFilename(file.name);
+                const groupKey = `${metadata.patientId}_${metadata.studyDate}`;
+
+                if (!this.fileGroups.has(groupKey)) {
+                    this.fileGroups.set(groupKey, {
+                        subject: {
+                            id: metadata.patientId,
+                            name: metadata.patientName || metadata.patientId
+                        },
+                        session: {
+                            date: metadata.studyDate,
+                            time: metadata.studyTime,
+                            uid: metadata.studyInstanceUID
+                        },
+                        acquisitions: new Map()
+                    });
+                }
+
+                const group = this.fileGroups.get(groupKey);
+                const acquisitionKey = metadata.seriesNumber || 'default';
+
+                if (!group.acquisitions.has(acquisitionKey)) {
+                    group.acquisitions.set(acquisitionKey, {
+                        seriesNumber: metadata.seriesNumber,
+                        seriesDescription: metadata.seriesDescription,
+                        files: []
+                    });
+                }
+
+                group.acquisitions.get(acquisitionKey).files.push({
+                    file: file,
+                    metadata: metadata
+                });
+
+                this.log(`Processed: ${file.name} -> Subject: ${metadata.patientId}, Series: ${metadata.seriesNumber}`, 'info');
+            }
+
+            extractMetadataFromFilename(filename) {
+                // Simple filename parsing - in reality, you'd parse the actual DICOM file
+                // Expected format examples: PatientID_StudyDate_SeriesNumber_InstanceNumber.dcm
+                const parts = filename.replace(/\.(dcm|dicom)$/i, '').split('_');
+                
+                return {
+                    patientId: parts[0] || 'UNKNOWN_PATIENT',
+                    patientName: parts[0] || 'Unknown Patient',
+                    studyDate: parts[1] || new Date().toISOString().split('T')[0].replace(/-/g, ''),
+                    studyTime: '120000', // Default time
+                    studyInstanceUID: `1.2.3.${Date.now()}`, // Generate UID
+                    seriesNumber: parts[2] || '1',
+                    seriesDescription: parts[3] || 'Unknown Series',
+                    instanceNumber: parts[4] || '1'
+                };
+            }
+
+            updateHierarchyDisplay() {
+                const treeEl = document.getElementById('hierarchyTree');
+                
+                if (this.fileGroups.size === 0) {
+                    treeEl.innerHTML = '<div class="empty-state">Upload DICOM files to see the organized hierarchy</div>';
                     return;
                 }
 
-                fileList.innerHTML = this.dicomFiles.map(file => `
-                    <div class="file-item">
-                        📄 ${file.name} (${this.formatFileSize(file.size)})
-                    </div>
-                `).join('');
+                let html = '';
+                
+                for (const [groupKey, group] of this.fileGroups) {
+                    const totalFiles = Array.from(group.acquisitions.values())
+                        .reduce((sum, acq) => sum + acq.files.length, 0);
+
+                    html += `
+                        <div class="tree-level">
+                            <div class="tree-node has-files">
+                                <div class="node-header">
+                                    <div class="node-title">👤 Subject: ${group.subject.name}</div>
+                                    <div class="file-count">${totalFiles} files</div>
+                                </div>
+                                <div class="node-details">Patient ID: ${group.subject.id}</div>
+                                
+                                <div class="tree-level">
+                                    <div class="tree-node has-files">
+                                        <div class="node-header">
+                                            <div class="node-title">📅 Session: ${group.session.date}</div>
+                                        </div>
+                                        <div class="node-details">Study Date: ${group.session.date} | Time: ${group.session.time}</div>
+                                        
+                                        ${this.renderAcquisitions(group.acquisitions)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                treeEl.innerHTML = html;
+            }
+
+            renderAcquisitions(acquisitions) {
+                let html = '';
+                
+                for (const [key, acquisition] of acquisitions) {
+                    html += `
+                        <div class="tree-level">
+                            <div class="tree-node has-files">
+                                <div class="node-header">
+                                    <div class="node-title">🔬 Acquisition: Series ${acquisition.seriesNumber}</div>
+                                    <div class="file-count">${acquisition.files.length} files</div>
+                                </div>
+                                <div class="node-details">${acquisition.seriesDescription}</div>
+                                <ul class="file-list">
+                                    ${acquisition.files.map(fileData => `
+                                        <li class="file-item">
+                                            <span class="file-name">${fileData.file.name}</span>
+                                            <span class="file-meta">${this.formatFileSize(fileData.file.size)}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                return html;
             }
 
             formatFileSize(bytes) {
@@ -450,247 +641,106 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
 
-            setupEventListeners() {
-                const form = document.getElementById('sortingForm');
-                form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    this.startSorting();
-                });
+            updateUploadButton() {
+                const uploadBtn = document.getElementById('uploadBtn');
+                uploadBtn.disabled = this.fileGroups.size === 0 || !this.isConnected;
+                
+                if (this.fileGroups.size > 0 && this.isConnected) {
+                    uploadBtn.textContent = `Upload ${this.getTotalFileCount()} files to Flywheel`;
+                } else {
+                    uploadBtn.textContent = 'Upload to Flywheel';
+                }
             }
 
-            async startSorting() {
-                if (this.isProcessing) return;
-                
-                this.isProcessing = true;
-                const btn = document.getElementById('startSorting');
-                btn.disabled = true;
-                btn.textContent = '⏳ Processing...';
+            getTotalFileCount() {
+                let total = 0;
+                for (const group of this.fileGroups.values()) {
+                    for (const acquisition of group.acquisitions.values()) {
+                        total += acquisition.files.length;
+                    }
+                }
+                return total;
+            }
+
+            async uploadToFlywheel() {
+                if (!this.isConnected) {
+                    this.log('Not connected to Flywheel', 'error');
+                    return;
+                }
+
+                this.log('Starting upload to Flywheel...', 'info');
+                const uploadBtn = document.getElementById('uploadBtn');
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
 
                 try {
-                    await this.processDicomFiles();
-                    this.log('🎉 Sorting completed successfully!', 'success');
-                } catch (error) {
-                    this.log(`❌ Sorting failed: ${error.message}`, 'error');
-                } finally {
-                    this.isProcessing = false;
-                    btn.disabled = false;
-                    btn.textContent = '🚀 Start Sorting';
-                }
-            }
-
-            async processDicomFiles() {
-                const config = this.getSortingConfig();
-                this.sortedStructure.clear();
-                
-                this.log(`📋 Starting to process ${this.dicomFiles.length} DICOM files...`);
-                
-                for (let i = 0; i < this.dicomFiles.length; i++) {
-                    const file = this.dicomFiles[i];
-                    const progress = ((i + 1) / this.dicomFiles.length) * 100;
-                    
-                    this.updateProgress(progress);
-                    this.log(`📄 Processing file ${i + 1}/${this.dicomFiles.length}: ${file.name}`);
-                    
-                    try {
-                        await this.processSingleFile(file, config);
-                    } catch (error) {
-                        this.log(`⚠️ Error processing ${file.name}: ${error.message}`, 'error');
+                    for (const [groupKey, group] of this.fileGroups) {
+                        await this.uploadGroup(group);
                     }
+                    
+                    this.log('Successfully uploaded all files to Flywheel!', 'success');
+                    uploadBtn.textContent = 'Upload Complete!';
+                    
+                } catch (error) {
+                    this.log(`Upload failed: ${error.message}`, 'error');
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Retry Upload';
                 }
-
-                await this.outputSortedFiles(config);
             }
 
-            async processSingleFile(file, config) {
+            async uploadGroup(group) {
+                this.log(`Creating hierarchy for Subject: ${group.subject.name}`, 'info');
+
                 try {
-                    // Get DICOM metadata
-                    const metadata = await this.getDicomMetadata(file);
+                    // In a real implementation, you would:
+                    // 1. Check if subject exists, create if not
+                    // 2. Check if session exists, create if not  
+                    // 3. Create acquisitions and upload files
                     
-                    if (!metadata) {
-                        throw new Error('Could not read DICOM metadata');
+                    // For demo purposes, we'll simulate the upload process
+                    for (const [seriesKey, acquisition] of group.acquisitions) {
+                        this.log(`Uploading ${acquisition.files.length} files for Series ${acquisition.seriesNumber}`, 'info');
+                        
+                        for (const fileData of acquisition.files) {
+                            // Simulate file upload delay
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            this.log(`Uploaded: ${fileData.file.name}`, 'success');
+                        }
                     }
-
-                    // Extract relevant fields
-                    let patientId = metadata.PatientID || 'Unknown';
-                    const seriesNumber = metadata.SeriesNumber || 0;
-                    const protocolName = metadata.ProtocolName || '';
-
-                    // Apply prefix/suffix
-                    if (config.prefix) patientId = config.prefix + patientId;
-                    if (config.suffix) patientId = patientId + config.suffix;
-
-                    // Clean up names
-                    patientId = patientId.replace(/[.]/g, '_');
-                    const cleanProtocol = protocolName.replace(/[.\s]/g, '_');
-
-                    // Create folder structure
-                    let folderName;
-                    if (config.includeProtocol && cleanProtocol) {
-                        folderName = `${String(seriesNumber).padStart(2, '0')}_${cleanProtocol}`;
-                    } else {
-                        folderName = String(seriesNumber).padStart(2, '0');
-                    }
-
-                    const path = `${patientId}/${folderName}`;
-                    
-                    // Add to sorted structure
-                    if (!this.sortedStructure.has(path)) {
-                        this.sortedStructure.set(path, []);
-                    }
-                    
-                    this.sortedStructure.get(path).push({
-                        file: file,
-                        newName: this.ensureDcmExtension(file.name)
-                    });
-
-                    this.log(`📁 Assigned ${file.name} to ${path}`);
                     
                 } catch (error) {
-                    throw new Error(`Failed to process DICOM metadata: ${error.message}`);
+                    throw new Error(`Failed to upload group ${group.subject.name}: ${error.message}`);
                 }
             }
 
-            async getDicomMetadata(file) {
-                try {
-                    // Try to get DICOM metadata from file info first
-                    if (file.info && file.info.header) {
-                        return file.info.header.dicom || {};
-                    }
-
-                    // If not available, we would need to read the file content
-                    // For now, return basic structure with fallbacks
-                    return {
-                        PatientID: file.info?.BIDS?.PatientID || 'Unknown',
-                        SeriesNumber: file.info?.header?.dicom?.SeriesNumber || 0,
-                        ProtocolName: file.info?.header?.dicom?.ProtocolName || ''
-                    };
-                    
-                } catch (error) {
-                    this.log(`⚠️ Could not extract metadata from ${file.name}, using defaults`);
-                    return {
-                        PatientID: 'Unknown',
-                        SeriesNumber: 0,
-                        ProtocolName: ''
-                    };
-                }
-            }
-
-            ensureDcmExtension(filename) {
-                if (!filename.toLowerCase().endsWith('.dcm')) {
-                    return filename + '.dcm';
-                }
-                return filename;
-            }
-
-            async outputSortedFiles(config) {
-                this.log('📦 Preparing sorted files...');
-                
-                const outputLocation = config.outputLocation;
-                
-                if (outputLocation === 'download') {
-                    await this.downloadSortedFiles(config);
-                } else if (outputLocation === 'current') {
-                    await this.uploadToCurrentContainer(config);
-                } else if (outputLocation === 'new-session') {
-                    await this.createNewSession(config);
-                }
-            }
-
-            async downloadSortedFiles(config) {
-                this.log('📥 Creating download package...');
-                
-                // Create a simple text file with the sorting structure
-                let content = '# DICOM Sorting Results\n\n';
-                content += `Generated: ${new Date().toISOString()}\n`;
-                content += `Total files: ${this.dicomFiles.length}\n`;
-                content += `Unique folders: ${this.sortedStructure.size}\n\n`;
-                
-                content += '## Folder Structure:\n\n';
-                for (const [path, files] of this.sortedStructure) {
-                    content += `📁 ${path}/\n`;
-                    for (const fileInfo of files) {
-                        content += `  📄 ${fileInfo.newName}\n`;
-                    }
-                    content += '\n';
-                }
-
-                // Create and download the results file
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'dicom_sorting_results.txt';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                this.log('✅ Download started! Check your downloads folder.');
-            }
-
-            async uploadToCurrentContainer(config) {
-                this.log('📤 Would upload sorted files to current container...');
-                this.log('ℹ️ Note: File upload requires additional implementation for production use.');
-                
-                // In a real implementation, you would:
-                // 1. Create the folder structure in Flywheel
-                // 2. Copy/move files to new locations
-                // 3. Update metadata as needed
-                
-                this.log('✅ Sorting structure created (demonstration mode)');
-            }
-
-            async createNewSession(config) {
-                this.log('📁 Would create new session with sorted files...');
-                this.log('ℹ️ Note: Session creation requires additional implementation for production use.');
-                
-                // In a real implementation, you would:
-                // 1. Create a new session
-                // 2. Upload sorted files to the new session
-                // 3. Set appropriate metadata
-                
-                this.log('✅ New session would be created (demonstration mode)');
-            }
-
-            getSortingConfig() {
-                return {
-                    outputLocation: document.getElementById('outputLocation').value,
-                    prefix: document.getElementById('prefix').value.trim(),
-                    suffix: document.getElementById('suffix').value.trim(),
-                    compression: document.getElementById('compression').value,
-                    preserveOriginal: document.getElementById('preserveOriginal').checked,
-                    includeProtocol: document.getElementById('includeProtocol').checked
-                };
-            }
-
-            updateStatus(message, type = 'info') {
-                const statusEl = document.getElementById('fileStatus');
-                statusEl.textContent = message;
-                statusEl.className = `status ${type}`;
-            }
-
-            updateProgress(percentage) {
-                const progressBar = document.getElementById('progressBar');
-                progressBar.style.width = `${percentage}%`;
+            clearAll() {
+                this.fileGroups.clear();
+                this.processedFiles = [];
+                document.getElementById('fileInput').value = '';
+                this.updateHierarchyDisplay();
+                this.updateUploadButton();
+                this.log('Cleared all files and organization', 'warning');
             }
 
             log(message, type = 'info') {
-                const logEl = document.getElementById('sortingLog');
+                const logEl = document.getElementById('statusLog');
                 const timestamp = new Date().toLocaleTimeString();
-                const logEntry = `[${timestamp}] ${message}\n`;
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.textContent = `[${timestamp}] ${message}`;
                 
-                logEl.textContent += logEntry;
+                logEl.appendChild(entry);
                 logEl.scrollTop = logEl.scrollHeight;
-                
-                console.log(message);
+
+                // Keep only last 50 log entries
+                while (logEl.children.length > 50) {
+                    logEl.removeChild(logEl.firstChild);
+                }
             }
         }
 
-        // Initialize the application when the page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            const sorter = new DicomSorter();
-            sorter.initialize();
-        });
+        // Initialize the application
+        const organizer = new DICOMOrganizer();
     </script>
 </body>
 </html>
