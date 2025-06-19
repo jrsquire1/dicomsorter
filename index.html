@@ -511,6 +511,11 @@
             <span>Connected to Flywheel</span>
         </div>
 
+        <div id="uploadInfo" class="validation-info" style="display: none; margin-bottom: 20px;">
+            <h4>📋 Upload Method</h4>
+            <div id="uploadInfoContent"></div>
+        </div>
+
         <div class="main-content">
             <div class="upload-section">
                 <h2 style="margin-bottom: 20px; color: #2d3748;">Upload DICOM Files</h2>
@@ -1098,7 +1103,7 @@
             }
 
             async validateHierarchy() {
-                this.log('🔍 Validating DICOM hierarchy and Flywheel readiness...', 'info');
+                this.log('🔍 Validating DICOM hierarchy and upload readiness...', 'info');
                 
                 if (this.fileGroups.size === 0) {
                     this.log('⚠️ No files to validate', 'warning');
@@ -1114,7 +1119,14 @@
                 } else {
                     try {
                         await this.validateConnection();
-                        this.log('✅ Flywheel connection verified', 'success');
+                        const container = this.extension.container;
+                        this.log(`✅ Connected to ${container.container_type}: ${container.label}`, 'success');
+                        
+                        // Check upload permissions
+                        if (container.container_type !== 'project') {
+                            warnings.push(`Current container is ${container.container_type}, files will be uploaded to this container`);
+                        }
+                        
                     } catch (error) {
                         issues.push(`Flywheel connection issue: ${error.message}`);
                     }
@@ -1180,6 +1192,13 @@
                     warnings.push(`Potential duplicate Patient IDs: ${[...new Set(duplicatePatients)].join(', ')}`);
                 }
 
+                // Important note about hierarchy
+                if (this.isConnected) {
+                    const container = this.extension.container;
+                    this.log(`ℹ️ Files will be uploaded to ${container.container_type}: "${container.label}"`, 'info');
+                    this.log(`ℹ️ Complete hierarchy metadata will be embedded in each file for future organization`, 'info');
+                }
+
                 // Report results
                 if (issues.length === 0 && warnings.length === 0) {
                     this.log('✅ Hierarchy validation passed - all data is valid and ready for upload', 'success');
@@ -1207,91 +1226,18 @@
                 return { issues, warnings };
             }
 
-            async withTimeout(promise, timeoutMs = 30000) {
-                const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
-                );
-                
-                return Promise.race([promise, timeout]);
-            }
-
-            async retryOperation(operation, maxRetries = 3, baseDelay = 1000) {
-                let lastError;
-                
-                for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                    try {
-                        return await operation();
-                    } catch (error) {
-                        lastError = error;
-                        
-                        if (attempt < maxRetries) {
-                            const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
-                            this.log(`⏳ Retry attempt ${attempt}/${maxRetries} in ${delay}ms`, 'warning');
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                        }
-                    }
+            async validateConnection() {
+                try {
+                    // Test connection by getting current container info
+                    const container = await this.extension.getContainer(
+                        this.extension.container.container_type, 
+                        this.extension.container._id
+                    );
+                    this.log(`✅ Connection validated - Current container: ${container.label}`, 'success');
+                    return container;
+                } catch (error) {
+                    throw new Error(`Connection validation failed: ${error.message}`);
                 }
-                
-                throw lastError;
-            }
-
-            createSearchableMetadata(metadata) {
-                // Create a flattened, searchable version of DICOM metadata
-                return {
-                    // Patient information
-                    patient_id: metadata.patientId,
-                    patient_name: metadata.patientName?.toLowerCase(),
-                    patient_sex: metadata.patientSex?.toLowerCase(),
-                    patient_age: metadata.patientAge,
-                    
-                    // Study information  
-                    study_uid: metadata.studyInstanceUID,
-                    study_date: metadata.studyDate,
-                    study_description: metadata.studyDescription?.toLowerCase(),
-                    accession_number: metadata.accessionNumber,
-                    
-                    // Series information
-                    series_uid: metadata.seriesInstanceUID,
-                    series_number: metadata.seriesNumber,
-                    modality: metadata.modality?.toLowerCase(),
-                    series_description: metadata.seriesDescription?.toLowerCase(),
-                    
-                    // Technical parameters
-                    manufacturer: metadata.manufacturer?.toLowerCase(),
-                    model: metadata.manufacturerModelName?.toLowerCase(),
-                    protocol: metadata.protocolName?.toLowerCase(),
-                    
-                    // Import metadata
-                    import_timestamp: new Date().toISOString(),
-                    import_source: 'dicom-organizer',
-                    original_filename: metadata.fileName
-                };
-            }
-
-            sanitizeContainerLabel(label) {
-                // Sanitize labels for Flywheel containers
-                return label
-                    .replace(/[^\w\s\-\.]/g, '') // Remove special characters except word chars, spaces, hyphens, dots
-                    .replace(/\s+/g, ' ') // Collapse multiple spaces
-                    .trim()
-                    .substring(0, 100); // Limit length
-            }
-
-            estimateUploadTime(totalFiles, totalSizeBytes) {
-                // Rough estimation based on typical upload speeds
-                const avgFileProcessingTime = 2; // seconds per file
-                const avgUploadSpeedMBps = 5; // MB per second
-                
-                const processingTime = totalFiles * avgFileProcessingTime;
-                const uploadTime = (totalSizeBytes / (1024 * 1024)) / avgUploadSpeedMBps;
-                
-                return Math.max(processingTime, uploadTime);
-            }
-
-            formatDuration(seconds) {
-                if (seconds < 60) return `${Math.round(seconds)}s`;
-                if (seconds < 3600) return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-                return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
             }
 
             updateUploadButton() {
@@ -1533,27 +1479,19 @@
             }
 
             async uploadGroup(group) {
-                this.log(`Creating hierarchy for Subject: ${group.subject.name}`, 'info');
+                this.log(`Uploading DICOM files for Subject: ${group.subject.name}`, 'info');
 
                 try {
-                    // Get current project as parent
-                    const project = this.extension.container;
+                    // Use current container (project) as the upload target
+                    const currentContainer = this.extension.container;
+                    this.log(`📁 Uploading to ${currentContainer.container_type}: ${currentContainer.label}`, 'info');
                     
-                    // Create or find subject
-                    const subject = await this.createOrFindSubject(project, group.subject);
-                    this.log(`✅ Subject ready: ${subject.label}`, 'success');
-
-                    // Create or find session  
-                    const session = await this.createOrFindSession(subject, group.session);
-                    this.log(`✅ Session ready: ${session.label}`, 'success');
-
-                    // Create acquisitions and upload files
+                    // Upload all files with comprehensive metadata
                     for (const [seriesKey, acquisition] of group.acquisitions) {
-                        const acq = await this.createOrFindAcquisition(session, acquisition);
-                        this.log(`✅ Acquisition ready: ${acq.label}`, 'success');
+                        this.log(`📸 Processing ${acquisition.modality} Series ${acquisition.number}`, 'info');
                         
                         for (const fileData of acquisition.files) {
-                            await this.uploadFileToContainer(acq, fileData.file, fileData.metadata);
+                            await this.uploadFileWithHierarchy(currentContainer, fileData.file, fileData.metadata, group);
                             this.log(`✅ Uploaded: ${fileData.file.name}`, 'success');
                         }
                     }
@@ -1783,11 +1721,11 @@
                 }
             }
 
-            async uploadFileToContainer(container, file, metadata) {
+            async uploadFileWithHierarchy(container, file, metadata, group) {
                 try {
-                    this.log(`📤 Uploading ${file.name} (${this.formatFileSize(file.size)}) to ${container.label}`, 'info');
+                    this.log(`📤 Uploading ${file.name} (${this.formatFileSize(file.size)}) with hierarchy info`, 'info');
                     
-                    // Wrap upload with timeout and retry logic
+                    // Upload file with complete hierarchy metadata embedded
                     return await this.withTimeout(
                         this.retryOperation(async () => {
                             return new Promise((resolve, reject) => {
@@ -1806,10 +1744,10 @@
                                             }
                                             
                                         } else if (event.type === 'response') {
-                                            // File upload complete, now add DICOM metadata
-                                            this.addFileMetadata(event.file, metadata)
+                                            // File upload complete, now add comprehensive metadata
+                                            this.addHierarchyMetadata(event.file, metadata, group)
                                                 .then(() => {
-                                                    this.log(`✅ ${file.name} uploaded with metadata`, 'success');
+                                                    this.log(`✅ ${file.name} uploaded with full hierarchy metadata`, 'success');
                                                     resolve(event.file);
                                                 })
                                                 .catch(error => {
@@ -1846,20 +1784,38 @@
                 }
             }
 
-            async addFileMetadata(file, metadata) {
+            async addHierarchyMetadata(file, metadata, group) {
                 try {
-                    // Create comprehensive, searchable DICOM metadata
-                    const searchableMetadata = this.createSearchableMetadata(metadata);
-                    
-                    const fileMetadata = {
+                    // Create comprehensive metadata that includes the full intended hierarchy
+                    const hierarchyMetadata = {
                         info: {
                             DICOM: {
-                                // Core DICOM metadata
+                                // Instance level metadata
                                 SOPInstanceUID: metadata.sopInstanceUID,
                                 InstanceNumber: metadata.instanceNumber,
                                 PatientID: metadata.patientId,
                                 StudyInstanceUID: metadata.studyInstanceUID,
                                 SeriesInstanceUID: metadata.seriesInstanceUID,
+                                
+                                // Patient Information (Subject level)
+                                PatientName: metadata.patientName,
+                                PatientBirthDate: metadata.patientBirthDate,
+                                PatientSex: metadata.patientSex,
+                                PatientAge: metadata.patientAge,
+                                
+                                // Study Information (Session level)
+                                StudyDate: metadata.studyDate,
+                                StudyTime: metadata.studyTime,
+                                StudyDescription: metadata.studyDescription,
+                                StudyID: metadata.studyId,
+                                AccessionNumber: metadata.accessionNumber,
+                                
+                                // Series Information (Acquisition level)
+                                SeriesNumber: metadata.seriesNumber,
+                                SeriesDescription: metadata.seriesDescription,
+                                Modality: metadata.modality,
+                                SeriesDate: metadata.seriesDate,
+                                SeriesTime: metadata.seriesTime,
                                 
                                 // Image parameters
                                 Rows: metadata.rows || null,
@@ -1873,37 +1829,54 @@
                                 SoftwareVersions: metadata.softwareVersions || null,
                                 ProtocolName: metadata.protocolName || null,
                                 
-                                // Modality and acquisition info
-                                Modality: metadata.modality,
-                                SeriesDescription: metadata.seriesDescription,
-                                StudyDescription: metadata.studyDescription,
-                                
                                 // Import metadata
                                 ImportTimestamp: new Date().toISOString(),
                                 OriginalFilename: metadata.fileName,
                                 ImportSource: 'dicom-organizer-v2'
                             },
                             
-                            // Searchable tags for easy querying
-                            searchable: searchableMetadata
+                            // Intended Flywheel Hierarchy (for future reference)
+                            intendedHierarchy: {
+                                subject: {
+                                    label: group.subject.name,
+                                    code: group.subject.id,
+                                    sex: group.subject.sex
+                                },
+                                session: {
+                                    label: group.session.description,
+                                    studyInstanceUID: group.session.uid,
+                                    studyDate: group.session.date
+                                },
+                                acquisition: {
+                                    label: `${metadata.modality} - ${metadata.seriesDescription}`,
+                                    seriesInstanceUID: metadata.seriesInstanceUID,
+                                    modality: metadata.modality,
+                                    seriesNumber: metadata.seriesNumber
+                                }
+                            },
+                            
+                            // Searchable tags for easy discovery
+                            searchable: this.createSearchableMetadata(metadata)
                         },
                         
                         tags: [
                             'dicom-file',
-                            `instance-${metadata.instanceNumber}`,
-                            `modality-${metadata.modality.toLowerCase()}`,
+                            'dicom-organizer-import',
                             `patient-${metadata.patientId.toLowerCase()}`,
+                            `study-${metadata.studyDate}`,
                             `series-${metadata.seriesNumber}`,
-                            'dicom-organizer-import'
+                            `modality-${metadata.modality.toLowerCase()}`,
+                            `instance-${metadata.instanceNumber}`,
+                            'awaiting-hierarchy-creation' // Flag for future processing
                         ]
                     };
 
-                    await this.extension.updateFileInfo(file, fileMetadata);
-                    this.log(`🏷️ Enhanced metadata added to ${file.name}`, 'success');
+                    await this.extension.updateFileInfo(file, hierarchyMetadata);
+                    this.log(`🏷️ Complete hierarchy metadata added to ${file.name}`, 'success');
                     
                 } catch (error) {
                     // Don't fail the upload if metadata addition fails
-                    this.log(`⚠️ Failed to add metadata to ${file.name}: ${error.message}`, 'warning');
+                    this.log(`⚠️ Failed to add hierarchy metadata to ${file.name}: ${error.message}`, 'warning');
                     
                     // Try basic metadata as fallback
                     try {
@@ -1912,6 +1885,8 @@
                                 DICOM: {
                                     SOPInstanceUID: metadata.sopInstanceUID,
                                     PatientID: metadata.patientId,
+                                    StudyInstanceUID: metadata.studyInstanceUID,
+                                    SeriesInstanceUID: metadata.seriesInstanceUID,
                                     Modality: metadata.modality,
                                     ImportTimestamp: new Date().toISOString()
                                 }
