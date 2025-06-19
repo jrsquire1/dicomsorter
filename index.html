@@ -479,6 +479,25 @@
             to { transform: rotate(360deg); }
         }
 
+        .sdk-info {
+            background: #fffbeb;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .sdk-info h4 {
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+
+        .sdk-info ul {
+            color: #a16207;
+            margin-left: 20px;
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -503,7 +522,7 @@
     <div class="container">
         <div class="header">
             <h1>DICOM File Organizer</h1>
-            <p>Advanced DICOM parsing and organization for Flywheel</p>
+            <p>Upload DICOM files with hierarchy metadata to Flywheel</p>
         </div>
 
         <div id="connectionStatus" class="connection-status" style="display: none;">
@@ -511,9 +530,9 @@
             <span>Connected to Flywheel</span>
         </div>
 
-        <div id="uploadInfo" class="validation-info" style="display: none; margin-bottom: 20px;">
-            <h4>📋 Upload Method</h4>
-            <div id="uploadInfoContent"></div>
+        <div id="sdkInfo" class="sdk-info" style="display: none;">
+            <h4>📋 SDK Upload Method</h4>
+            <div id="sdkInfoContent"></div>
         </div>
 
         <div class="main-content">
@@ -534,12 +553,12 @@
                 </div>
 
                 <div class="validation-info">
-                    <h4>📋 DICOM Validation</h4>
+                    <h4>📋 DICOM Processing</h4>
                     <ul>
                         <li>Files are validated for proper DICOM format</li>
                         <li>Metadata extracted from DICOM headers</li>
                         <li>Automatic grouping by Patient ID and Study Date</li>
-                        <li>Series organized by acquisition parameters</li>
+                        <li>Complete hierarchy metadata stored in container</li>
                     </ul>
                 </div>
             </div>
@@ -585,7 +604,7 @@
 
         <div class="actions">
             <button id="validateBtn" class="action-btn btn-secondary">
-                Validate Hierarchy
+                Validate Files
             </button>
             <button id="uploadBtn" class="action-btn btn-primary" disabled>
                 Upload to Flywheel
@@ -602,7 +621,7 @@
     <script src="https://cdn.flywheel.io/sdk/extension/flywheel-extension-0.14.3.min.js"></script>
     
     <script>
-        class AdvancedDICOMOrganizer {
+        class FixedDICOMOrganizer {
             constructor() {
                 this.extension = null;
                 this.fileGroups = new Map();
@@ -619,7 +638,7 @@
 
             async init() {
                 try {
-                    this.log('Initializing Advanced DICOM Organizer...', 'info');
+                    this.log('Initializing DICOM Organizer with correct SDK methods...', 'info');
                     
                     this.extension = await Flywheel.initExtension({
                         scope: 'ReadWrite',
@@ -627,18 +646,18 @@
                             return origin.includes('localhost') || 
                                    origin.includes('127.0.0.1') || 
                                    origin.endsWith('flywheel.io') ||
-                                   origin.includes('127.0.0.1:3000'); // For development
+                                   origin.includes('127.0.0.1:3000');
                         }
                     });
 
                     this.isConnected = true;
-                    this.log('Successfully connected to Flywheel!', 'success');
-                    this.log(`Project: ${this.extension.container.label || 'Unknown'}`, 'info');
-                    this.log(`Container Type: ${this.extension.container.container_type}`, 'info');
+                    this.log('✅ Successfully connected to Flywheel!', 'success');
+                    this.log(`📁 Container: ${this.extension.container.label || 'Unknown'}`, 'info');
+                    this.log(`📂 Type: ${this.extension.container.container_type}`, 'info');
                     this.updateConnectionStatus();
                     
                 } catch (error) {
-                    this.log(`Failed to initialize extension: ${error.message}`, 'error');
+                    this.log(`❌ Failed to initialize extension: ${error.message}`, 'error');
                     this.log('Running in demo mode without Flywheel connection', 'warning');
                 }
                 
@@ -647,8 +666,8 @@
 
             updateConnectionStatus() {
                 const statusEl = document.getElementById('connectionStatus');
-                const uploadInfoEl = document.getElementById('uploadInfo');
-                const uploadInfoContent = document.getElementById('uploadInfoContent');
+                const sdkInfoEl = document.getElementById('sdkInfo');
+                const sdkInfoContent = document.getElementById('sdkInfoContent');
                 
                 if (this.isConnected) {
                     statusEl.style.display = 'flex';
@@ -657,15 +676,15 @@
                         <span>Connected to Flywheel - ${this.extension.container.container_type}: ${this.extension.container.label || 'Unknown'}</span>
                     `;
                     
-                    // Show upload method info
-                    uploadInfoEl.style.display = 'block';
-                    uploadInfoContent.innerHTML = `
+                    // Show correct SDK method info
+                    sdkInfoEl.style.display = 'block';
+                    sdkInfoContent.innerHTML = `
                         <ul>
-                            <li><strong>Upload Target:</strong> Files will be uploaded to the current ${this.extension.container.container_type}: "${this.extension.container.label}"</li>
-                            <li><strong>Metadata Storage:</strong> DICOM hierarchy information will be stored in the container's metadata for organization</li>
-                            <li><strong>Future Organization:</strong> Container hierarchy can be created later using the stored metadata</li>
-                            <li><strong>SDK Methods:</strong> Using only documented Flywheel Extension SDK methods (getContainer, uploadFile, updateContainerInfo)</li>
-                            <li><strong>Searchable:</strong> All DICOM fields are stored for easy discovery and filtering</li>
+                            <li><strong>Upload Method:</strong> Files uploaded directly to current ${this.extension.container.container_type} using extension.uploadFile()</li>
+                            <li><strong>Hierarchy Storage:</strong> Complete DICOM hierarchy metadata stored using extension.updateContainerInfo()</li>
+                            <li><strong>SDK Methods Used:</strong> Only documented methods (getContainer, uploadFile, updateContainerInfo)</li>
+                            <li><strong>Container Creation:</strong> Extension SDK doesn't create containers - hierarchy info stored as metadata</li>
+                            <li><strong>Future Use:</strong> Stored metadata can be used by other Flywheel tools to create proper hierarchy</li>
                         </ul>
                     `;
                 }
@@ -711,7 +730,7 @@
                 });
 
                 validateBtn.addEventListener('click', () => {
-                    this.validateHierarchy();
+                    this.validateFiles();
                 });
             }
 
@@ -736,7 +755,7 @@
                     } catch (error) {
                         this.validationResults.invalid++;
                         this.validationResults.errors.push(`${file.name}: ${error.message}`);
-                        this.log(`Error processing ${file.name}: ${error.message}`, 'error');
+                        this.log(`❌ Error processing ${file.name}: ${error.message}`, 'error');
                     }
                 }
 
@@ -772,7 +791,7 @@
                             // Organize into hierarchy
                             this.organizeDICOMFile(file, metadata);
                             
-                            this.log(`Parsed: ${file.name} - Patient: ${metadata.patientName}, Study: ${metadata.studyDescription}`, 'success');
+                            this.log(`✅ Parsed: ${file.name} - Patient: ${metadata.patientName}, Study: ${metadata.studyDescription}`, 'success');
                             resolve(metadata);
                             
                         } catch (error) {
@@ -1117,8 +1136,8 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
 
-            async validateHierarchy() {
-                this.log('🔍 Validating DICOM hierarchy and upload readiness...', 'info');
+            async validateFiles() {
+                this.log('🔍 Validating DICOM files and connection...', 'info');
                 
                 if (this.fileGroups.size === 0) {
                     this.log('⚠️ No files to validate', 'warning');
@@ -1128,27 +1147,25 @@
                 let issues = [];
                 let warnings = [];
                 
-                // Check Flywheel connection
+                // Check Flywheel connection using correct SDK methods
                 if (!this.isConnected) {
                     issues.push('Not connected to Flywheel instance');
                 } else {
                     try {
-                        const container = await this.validateConnection();
+                        // Use getContainer method to validate connection
+                        const container = await this.extension.getContainer(
+                            this.extension.container.container_type, 
+                            this.extension.container._id
+                        );
                         this.log(`✅ Connected to ${container.container_type}: ${container.label}`, 'success');
-                        
-                        // Check upload permissions
-                        if (container.container_type !== 'project') {
-                            warnings.push(`Current container is ${container.container_type}, files will be uploaded to this container`);
-                        }
                         
                     } catch (error) {
                         issues.push(`Flywheel connection issue: ${error.message}`);
                     }
                 }
 
-                // Validate each subject group
+                // Validate file data
                 for (const [groupKey, group] of this.fileGroups) {
-                    // Validate subject data
                     if (!group.subject.id || group.subject.id.includes('Unknown')) {
                         issues.push(`Subject ${groupKey}: Missing or invalid Patient ID`);
                     }
@@ -1157,22 +1174,10 @@
                         warnings.push(`Subject ${groupKey}: Missing or generic Patient Name`);
                     }
                     
-                    // Validate session data
                     if (!group.session.uid || !group.session.date) {
                         issues.push(`Session ${groupKey}: Missing Study UID or Date`);
                     }
                     
-                    // Check for reasonable study date
-                    const studyDate = new Date(group.session.date);
-                    const now = new Date();
-                    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-                    const oneYearFromNow = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-                    
-                    if (studyDate < oneYearAgo || studyDate > oneYearFromNow) {
-                        warnings.push(`Session ${groupKey}: Study date seems unusual (${group.session.date})`);
-                    }
-                    
-                    // Validate acquisitions
                     if (group.acquisitions.size === 0) {
                         issues.push(`Session ${groupKey}: No acquisitions found`);
                     }
@@ -1185,93 +1190,32 @@
                         if (acquisition.files.length === 0) {
                             issues.push(`Acquisition ${acqKey}: No files`);
                         }
-                        
-                        // Check for reasonable file count per series
-                        if (acquisition.files.length > 1000) {
-                            warnings.push(`Acquisition ${acqKey}: Large number of files (${acquisition.files.length}), upload may take time`);
-                        }
-                        
-                        // Validate modality
-                        const validModalities = ['CT', 'MR', 'US', 'XA', 'RF', 'DX', 'CR', 'MG', 'PT', 'NM', 'SC', 'OT'];
-                        if (!validModalities.includes(acquisition.modality)) {
-                            warnings.push(`Acquisition ${acqKey}: Unusual modality "${acquisition.modality}"`);
-                        }
                     }
-                }
-
-                // Check for potential duplicates
-                const patientIds = Array.from(this.fileGroups.values()).map(g => g.subject.id);
-                const duplicatePatients = patientIds.filter((id, index) => patientIds.indexOf(id) !== index);
-                if (duplicatePatients.length > 0) {
-                    warnings.push(`Potential duplicate Patient IDs: ${[...new Set(duplicatePatients)].join(', ')}`);
-                }
-
-                // Important note about hierarchy
-                if (this.isConnected) {
-                    const container = this.extension.container;
-                    this.log(`ℹ️ Files will be uploaded to ${container.container_type}: "${container.label}"`, 'info');
-                    this.log(`ℹ️ DICOM hierarchy metadata will be stored in container info using updateContainerInfo()`, 'info');
-                    this.log(`ℹ️ Using only documented Flywheel Extension SDK methods`, 'info');
                 }
 
                 // Report results
                 if (issues.length === 0 && warnings.length === 0) {
-                    this.log('✅ Hierarchy validation passed - all data is valid and ready for upload', 'success');
+                    this.log('✅ Validation passed - files ready for upload', 'success');
                     this.log(`📊 Summary: ${this.fileGroups.size} subjects, ${this.calculateStats().acquisitions} acquisitions, ${this.getTotalFileCount()} files`, 'info');
                 } else {
                     if (issues.length > 0) {
-                        this.log(`❌ Hierarchy validation found ${issues.length} critical issues:`, 'error');
+                        this.log(`❌ Found ${issues.length} critical issues:`, 'error');
                         issues.forEach(issue => this.log(`  ▸ ${issue}`, 'error'));
                     }
                     
                     if (warnings.length > 0) {
-                        this.log(`⚠️ Hierarchy validation found ${warnings.length} warnings:`, 'warning');
+                        this.log(`⚠️ Found ${warnings.length} warnings:`, 'warning');
                         warnings.forEach(warning => this.log(`  ▸ ${warning}`, 'warning'));
-                    }
-                    
-                    if (issues.length > 0) {
-                        this.log('🚫 Upload blocked due to critical issues. Please resolve them before uploading.', 'error');
-                        document.getElementById('uploadBtn').disabled = true;
-                        document.getElementById('uploadBtn').textContent = 'Resolve Issues First';
-                    } else {
-                        this.log('⚠️ Upload can proceed but warnings should be reviewed.', 'warning');
                     }
                 }
 
                 return { issues, warnings };
             }
 
-            async validateConnection() {
-                try {
-                    // Test connection using documented SDK methods
-                    const container = this.extension.container;
-                    if (!container || !container._id) {
-                        throw new Error('No container context available');
-                    }
-                    
-                    // Try to get the current container to verify connection
-                    const currentContainer = await this.extension.getContainer(container.container_type, container._id);
-                    
-                    this.log(`✅ Connection validated - Current container: ${currentContainer.label} (${currentContainer.container_type})`, 'success');
-                    return currentContainer;
-                } catch (error) {
-                    // Fallback to basic container info if getContainer fails
-                    const container = this.extension.container;
-                    if (container && container._id) {
-                        this.log(`✅ Basic connection validated - Container: ${container.label} (${container.container_type})`, 'success');
-                        return container;
-                    }
-                    throw new Error(`Connection validation failed: ${error.message}`);
-                }
-            }
-
             updateUploadButton() {
                 const uploadBtn = document.getElementById('uploadBtn');
                 const validateBtn = document.getElementById('validateBtn');
                 const fileCount = this.getTotalFileCount();
-                
-                // Calculate total file size for time estimation
-                const totalSize = this.processedFiles.reduce((sum, fileData) => sum + fileData.file.size, 0);
                 
                 if (fileCount === 0) {
                     uploadBtn.disabled = true;
@@ -1283,22 +1227,10 @@
                 validateBtn.disabled = false;
                 
                 if (this.isConnected) {
-                    const estimatedTime = this.estimateUploadTime(fileCount, totalSize);
-                    uploadBtn.innerHTML = `
-                        Upload ${fileCount} files to Flywheel
-                        <br><small style="font-size: 12px; opacity: 0.8;">
-                            Est. time: ${this.formatDuration(estimatedTime)} | 
-                            Size: ${this.formatFileSize(totalSize)}
-                        </small>
-                    `;
+                    uploadBtn.innerHTML = `Upload ${fileCount} files with metadata`;
                     uploadBtn.disabled = false;
                 } else {
-                    uploadBtn.innerHTML = `
-                        ${fileCount} files ready (Demo mode)
-                        <br><small style="font-size: 12px; opacity: 0.8;">
-                            Connect to Flywheel to upload
-                        </small>
-                    `;
+                    uploadBtn.innerHTML = `${fileCount} files ready (Demo mode)`;
                     uploadBtn.disabled = false; // Allow demo mode
                 }
             }
@@ -1315,12 +1247,12 @@
 
             async uploadToFlywheel() {
                 if (!this.isConnected) {
-                    this.log('Demo mode: Simulating upload to Flywheel...', 'warning');
+                    this.log('Demo mode: Simulating upload...', 'warning');
                     await this.simulateUpload();
                     return;
                 }
 
-                this.log('🚀 Starting upload to Flywheel...', 'info');
+                this.log('🚀 Starting upload to Flywheel using correct SDK methods...', 'info');
                 const uploadBtn = document.getElementById('uploadBtn');
                 const originalText = uploadBtn.textContent;
                 uploadBtn.disabled = true;
@@ -1332,21 +1264,22 @@
                 const totalFiles = this.getTotalFileCount();
 
                 try {
-                    // Validate connection before starting
-                    await this.validateConnection();
+                    // First, store the complete hierarchy metadata in the container
+                    await this.storeHierarchyMetadata();
                     
-                    this.log(`📊 Starting upload of ${totalFiles} files across ${this.fileGroups.size} subjects`, 'info');
-
+                    // Then upload all files
                     for (const [groupKey, group] of this.fileGroups) {
-                        try {
-                            const groupResult = await this.uploadGroupWithRetry(group, 3);
-                            uploadedFiles += groupResult.uploadedCount;
-                            failedFiles += groupResult.failedCount;
-                            
-                        } catch (error) {
-                            this.log(`❌ Failed to upload group ${group.subject.name}: ${error.message}`, 'error');
-                            failedFiles += Array.from(group.acquisitions.values())
-                                .reduce((sum, acq) => sum + acq.files.length, 0);
+                        for (const [seriesKey, acquisition] of group.acquisitions) {
+                            for (const fileData of acquisition.files) {
+                                try {
+                                    await this.uploadSingleFile(fileData.file, fileData.metadata);
+                                    uploadedFiles++;
+                                    this.log(`✅ Uploaded: ${fileData.file.name} (${uploadedFiles}/${totalFiles})`, 'success');
+                                } catch (error) {
+                                    failedFiles++;
+                                    this.log(`❌ Failed: ${fileData.file.name} - ${error.message}`, 'error');
+                                }
+                            }
                         }
                     }
                     
@@ -1365,111 +1298,100 @@
                     
                 } catch (error) {
                     const duration = Math.round((Date.now() - startTime) / 1000);
-                    this.handleUploadError(error, uploadBtn, originalText, duration);
+                    this.log(`❌ Upload failed after ${duration}s: ${error.message}`, 'error');
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = '🔄 Retry Upload';
+                    uploadBtn.style.background = '#e53e3e';
                 }
             }
 
-            async validateConnection() {
+            async storeHierarchyMetadata() {
                 try {
-                    // Test connection by getting current container info
-                    await this.extension.getContainer(this.extension.container.container_type, this.extension.container._id);
-                    this.log('✅ Connection validated', 'success');
-                } catch (error) {
-                    throw new Error(`Connection validation failed: ${error.message}`);
-                }
-            }
+                    this.log('📋 Storing complete hierarchy metadata in container...', 'info');
+                    
+                    // Create comprehensive metadata object
+                    const hierarchyMetadata = {
+                        dicom_organizer: {
+                            version: '2.0',
+                            import_timestamp: new Date().toISOString(),
+                            total_subjects: this.fileGroups.size,
+                            total_files: this.getTotalFileCount(),
+                            subjects: {}
+                        }
+                    };
 
-            async uploadGroupWithRetry(group, maxRetries = 3) {
-                let uploadedCount = 0;
-                let failedCount = 0;
-                let retryCount = 0;
+                    // Add detailed hierarchy for each subject
+                    for (const [groupKey, group] of this.fileGroups) {
+                        hierarchyMetadata.dicom_organizer.subjects[groupKey] = {
+                            patient_info: {
+                                patient_id: group.subject.id,
+                                patient_name: group.subject.name,
+                                patient_sex: group.subject.sex,
+                                patient_age: group.subject.age,
+                                patient_birth_date: group.subject.birthDate
+                            },
+                            study_info: {
+                                study_instance_uid: group.session.uid,
+                                study_date: group.session.date,
+                                study_time: group.session.time,
+                                study_description: group.session.description,
+                                study_id: group.session.id,
+                                accession_number: group.session.accessionNumber
+                            },
+                            series: {}
+                        };
 
-                while (retryCount < maxRetries) {
-                    try {
-                        await this.uploadGroup(group);
-                        
-                        // Count successful files
-                        uploadedCount = Array.from(group.acquisitions.values())
-                            .reduce((sum, acq) => sum + acq.files.length, 0);
-                        break;
-                        
-                    } catch (error) {
-                        retryCount++;
-                        
-                        if (retryCount < maxRetries) {
-                            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-                            this.log(`⏳ Retrying group ${group.subject.name} in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`, 'warning');
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                        } else {
-                            this.log(`❌ Max retries exceeded for group ${group.subject.name}`, 'error');
-                            failedCount = Array.from(group.acquisitions.values())
-                                .reduce((sum, acq) => sum + acq.files.length, 0);
-                            throw error;
+                        // Add series information
+                        for (const [seriesKey, acquisition] of group.acquisitions) {
+                            hierarchyMetadata.dicom_organizer.subjects[groupKey].series[seriesKey] = {
+                                series_instance_uid: acquisition.uid,
+                                series_number: acquisition.number,
+                                series_description: acquisition.description,
+                                modality: acquisition.modality,
+                                manufacturer: acquisition.manufacturer,
+                                protocol_name: acquisition.protocol,
+                                file_count: acquisition.files.length,
+                                files: acquisition.files.map(f => ({
+                                    filename: f.file.name,
+                                    sop_instance_uid: f.metadata.sopInstanceUID,
+                                    instance_number: f.metadata.instanceNumber,
+                                    file_size: f.file.size
+                                }))
+                            };
                         }
                     }
-                }
 
-                return { uploadedCount, failedCount };
+                    // Store metadata using updateContainerInfo
+                    await this.extension.updateContainerInfo(this.extension.container, {
+                        set: hierarchyMetadata
+                    });
+                    
+                    this.log('✅ Hierarchy metadata stored successfully', 'success');
+                    
+                } catch (error) {
+                    this.log(`⚠️ Failed to store hierarchy metadata: ${error.message}`, 'warning');
+                    // Don't fail upload if metadata storage fails
+                }
             }
 
-            handleUploadError(error, uploadBtn, originalText, duration) {
-                let errorMessage = 'Unknown error occurred';
-                let actionAdvice = 'Please try again';
-
-                // Categorize errors and provide specific advice
-                if (error.message.includes('network') || error.message.includes('fetch')) {
-                    errorMessage = 'Network connection error';
-                    actionAdvice = 'Check your internet connection and try again';
-                } else if (error.message.includes('permission') || error.message.includes('auth')) {
-                    errorMessage = 'Permission or authentication error';
-                    actionAdvice = 'Check your Flywheel permissions';
-                } else if (error.message.includes('quota') || error.message.includes('space')) {
-                    errorMessage = 'Storage quota exceeded';
-                    actionAdvice = 'Contact your Flywheel administrator';
-                } else if (error.message.includes('validation')) {
-                    errorMessage = 'Data validation error';
-                    actionAdvice = 'Check your DICOM files and try again';
-                } else {
-                    errorMessage = error.message;
-                }
-
-                this.log(`❌ Upload failed after ${duration}s: ${errorMessage}`, 'error');
-                this.log(`💡 Suggestion: ${actionAdvice}`, 'info');
-                
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = '🔄 Retry Upload';
-                uploadBtn.style.background = '#e53e3e';
-                
-                // Show error details in UI
-                this.showErrorDialog(errorMessage, actionAdvice, error.stack);
-            }
-
-            showErrorDialog(message, advice, details) {
-                // Create a simple error dialog (could be enhanced with a modal)
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-state';
-                errorDiv.innerHTML = `
-                    <h4>❌ Upload Error</h4>
-                    <p><strong>Error:</strong> ${message}</p>
-                    <p><strong>Suggestion:</strong> ${advice}</p>
-                    <details style="margin-top: 10px;">
-                        <summary>Technical Details</summary>
-                        <pre style="font-size: 11px; margin-top: 5px;">${details || 'No additional details available'}</pre>
-                    </details>
-                    <button onclick="this.parentElement.remove()" style="margin-top: 10px; padding: 5px 10px; border: none; background: #e53e3e; color: white; border-radius: 4px; cursor: pointer;">
-                        Dismiss
-                    </button>
-                `;
-                
-                const statusSection = document.querySelector('.status-section');
-                statusSection.insertBefore(errorDiv, statusSection.firstChild);
-                
-                // Auto-remove after 30 seconds
-                setTimeout(() => {
-                    if (errorDiv.parentElement) {
-                        errorDiv.remove();
-                    }
-                }, 30000);
+            async uploadSingleFile(file, metadata) {
+                return new Promise((resolve, reject) => {
+                    // Use the documented uploadFile method
+                    const uploadObservable = this.extension.uploadFile(this.extension.container, file);
+                    
+                    uploadObservable.subscribe({
+                        next: event => {
+                            if (event.type === 'progress') {
+                                // Progress updates (optional to log)
+                            } else if (event.type === 'response') {
+                                resolve(event.file);
+                            }
+                        },
+                        error: error => {
+                            reject(new Error(`Upload failed: ${error.message}`));
+                        }
+                    });
+                });
             }
 
             async simulateUpload() {
@@ -1480,487 +1402,27 @@
                 let fileCount = 0;
                 const totalFiles = this.getTotalFileCount();
 
+                this.log('📋 Simulating hierarchy metadata storage...', 'info');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 for (const [groupKey, group] of this.fileGroups) {
                     this.log(`📁 Processing Subject: ${group.subject.name}`, 'info');
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    this.log(`📅 Processing Session: ${group.session.description}`, 'info');
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    
                     for (const [seriesKey, acquisition] of group.acquisitions) {
-                        this.log(`🔬 Processing Acquisition: ${acquisition.modality} Series ${acquisition.number}`, 'info');
-                        await new Promise(resolve => setTimeout(resolve, 150));
+                        this.log(`🔬 Processing ${acquisition.modality} Series ${acquisition.number}`, 'info');
                         
                         for (const fileData of acquisition.files) {
                             fileCount++;
                             this.log(`📄 Uploading ${fileData.file.name} (${fileCount}/${totalFiles})`, 'success');
-                            await new Promise(resolve => setTimeout(resolve, 50));
+                            await new Promise(resolve => setTimeout(resolve, 100));
                         }
                     }
                 }
 
                 uploadBtn.textContent = 'Demo Upload Complete!';
                 this.log('✅ Demo upload simulation completed', 'success');
-            }
-
-            async uploadGroup(group) {
-                this.log(`Uploading DICOM files for Subject: ${group.subject.name}`, 'info');
-
-                try {
-                    // Use current container (project) as the upload target
-                    const currentContainer = this.extension.container;
-                    this.log(`📁 Uploading to ${currentContainer.container_type}: ${currentContainer.label}`, 'info');
-                    
-                    // Upload all files with comprehensive metadata
-                    for (const [seriesKey, acquisition] of group.acquisitions) {
-                        this.log(`📸 Processing ${acquisition.modality} Series ${acquisition.number}`, 'info');
-                        
-                        for (const fileData of acquisition.files) {
-                            await this.uploadFileWithHierarchy(currentContainer, fileData.file, fileData.metadata, group);
-                            this.log(`✅ Uploaded: ${fileData.file.name}`, 'success');
-                        }
-                    }
-                    
-                } catch (error) {
-                    throw new Error(`Failed to upload group ${group.subject.name}: ${error.message}`);
-                }
-            }
-
-            async createOrFindSubject(project, subjectData) {
-                try {
-                    // Search for existing subject by Patient ID
-                    this.log(`🔍 Searching for existing subject: ${subjectData.id}`, 'info');
-                    
-                    const existingSubjects = await this.withTimeout(
-                        this.searchContainers(project._id, 'subject', {
-                            'code': subjectData.id
-                        }),
-                        10000 // 10 second timeout for search
-                    );
-
-                    if (existingSubjects.length > 0) {
-                        this.log(`📋 Found existing subject: ${existingSubjects[0].label}`, 'info');
-                        
-                        // Update existing subject with any new metadata
-                        await this.updateSubjectMetadata(existingSubjects[0], subjectData);
-                        return existingSubjects[0];
-                    }
-
-                    // Create new subject
-                    this.log(`➕ Creating new subject: ${subjectData.name}`, 'info');
-                    
-                    const sanitizedLabel = this.sanitizeContainerLabel(subjectData.name || subjectData.id);
-                    const subjectPayload = {
-                        label: sanitizedLabel,
-                        code: subjectData.id,
-                        sex: subjectData.sex || null,
-                        cohort: 'DICOM Import',
-                        info: {
-                            DICOM: {
-                                PatientName: subjectData.name,
-                                PatientID: subjectData.id,
-                                PatientBirthDate: subjectData.birthDate || null,
-                                PatientSex: subjectData.sex || null,
-                                PatientAge: subjectData.age || null,
-                                ImportTimestamp: new Date().toISOString(),
-                                ImportSource: 'dicom-organizer'
-                            },
-                            searchable: {
-                                patient_id: subjectData.id.toLowerCase(),
-                                patient_name: subjectData.name?.toLowerCase() || '',
-                                patient_sex: subjectData.sex?.toLowerCase() || 'unknown',
-                                import_date: new Date().toISOString().split('T')[0]
-                            }
-                        },
-                        tags: [
-                            'dicom-import', 
-                            `patient-${subjectData.id.toLowerCase()}`,
-                            'dicom-organizer-subject'
-                        ]
-                    };
-
-                    const newSubject = await this.withTimeout(
-                        this.retryOperation(async () => {
-                            return await this.extension.createContainer('subject', project._id, subjectPayload);
-                        }, 3, 1000),
-                        30000 // 30 second timeout for creation
-                    );
-                    
-                    // Add additional searchable tags
-                    await this.tagContainer(newSubject, {
-                        'dicom:patient_id': subjectData.id,
-                        'dicom:patient_name': subjectData.name || subjectData.id,
-                        'dicom:patient_sex': subjectData.sex || 'unknown',
-                        'import:source': 'dicom-organizer',
-                        'import:timestamp': new Date().toISOString(),
-                        'import:version': '2.0'
-                    });
-
-                    this.log(`✅ Created subject: ${newSubject.label} (${newSubject._id})`, 'success');
-                    return newSubject;
-                    
-                } catch (error) {
-                    const errorMsg = `Subject creation failed for ${subjectData.id}: ${error.message}`;
-                    this.log(`❌ ${errorMsg}`, 'error');
-                    throw new Error(errorMsg);
-                }
-            }
-
-            async updateSubjectMetadata(subject, subjectData) {
-                try {
-                    // Update existing subject with new DICOM data if needed
-                    const updatePayload = {
-                        set: {
-                            info: {
-                                ...subject.info,
-                                DICOM: {
-                                    ...subject.info?.DICOM,
-                                    PatientName: subjectData.name,
-                                    PatientID: subjectData.id,
-                                    PatientBirthDate: subjectData.birthDate || subject.info?.DICOM?.PatientBirthDate,
-                                    PatientSex: subjectData.sex || subject.info?.DICOM?.PatientSex,
-                                    PatientAge: subjectData.age || subject.info?.DICOM?.PatientAge,
-                                    LastUpdated: new Date().toISOString()
-                                }
-                            }
-                        }
-                    };
-
-                    await this.extension.updateContainerInfo(subject, updatePayload);
-                    this.log(`🔄 Updated existing subject metadata: ${subject.label}`, 'info');
-                    
-                } catch (error) {
-                    this.log(`⚠️ Failed to update subject metadata: ${error.message}`, 'warning');
-                    // Don't fail the process if metadata update fails
-                }
-            }
-
-            async createOrFindSession(subject, sessionData) {
-                try {
-                    // Search for existing session by Study Instance UID
-                    this.log(`🔍 Searching for existing session: ${sessionData.description}`, 'info');
-                    
-                    const existingSession = await this.searchContainers(subject._id, 'session', {
-                        'info.DICOM.StudyInstanceUID': sessionData.uid
-                    });
-
-                    if (existingSession.length > 0) {
-                        this.log(`📋 Found existing session: ${existingSession[0].label}`, 'info');
-                        return existingSession[0];
-                    }
-
-                    // Create new session
-                    this.log(`➕ Creating new session: ${sessionData.description}`, 'info');
-                    
-                    const sessionPayload = {
-                        label: sessionData.description || `Study ${sessionData.date}`,
-                        timestamp: this.parseDICOMDateTime(sessionData.date, sessionData.time),
-                        info: {
-                            DICOM: {
-                                StudyInstanceUID: sessionData.uid,
-                                StudyDate: sessionData.date,
-                                StudyTime: sessionData.time,
-                                StudyDescription: sessionData.description,
-                                StudyID: sessionData.id,
-                                AccessionNumber: sessionData.accessionNumber || null
-                            }
-                        },
-                        tags: ['dicom-import', 'study-' + sessionData.date]
-                    };
-
-                    const newSession = await this.extension.createContainer('session', subject._id, sessionPayload);
-                    
-                    // Add metadata tags
-                    await this.tagContainer(newSession, {
-                        'dicom:study_uid': sessionData.uid,
-                        'dicom:study_date': sessionData.date,
-                        'dicom:study_description': sessionData.description || 'unknown',
-                        'dicom:accession_number': sessionData.accessionNumber || 'none',
-                        'import:source': 'dicom-organizer'
-                    });
-
-                    return newSession;
-                    
-                } catch (error) {
-                    throw new Error(`Session creation failed: ${error.message}`);
-                }
-            }
-
-            async createOrFindAcquisition(session, acquisitionData) {
-                try {
-                    // Search for existing acquisition by Series Instance UID
-                    this.log(`🔍 Searching for existing acquisition: Series ${acquisitionData.number}`, 'info');
-                    
-                    const existingAcquisition = await this.searchContainers(session._id, 'acquisition', {
-                        'info.DICOM.SeriesInstanceUID': acquisitionData.uid
-                    });
-
-                    if (existingAcquisition.length > 0) {
-                        this.log(`📋 Found existing acquisition: ${existingAcquisition[0].label}`, 'info');
-                        return existingAcquisition[0];
-                    }
-
-                    // Create new acquisition
-                    this.log(`➕ Creating new acquisition: ${acquisitionData.description}`, 'info');
-                    
-                    const acquisitionPayload = {
-                        label: `${acquisitionData.modality} - ${acquisitionData.description}`,
-                        timestamp: this.parseDICOMDateTime(acquisitionData.date, acquisitionData.time),
-                        info: {
-                            DICOM: {
-                                SeriesInstanceUID: acquisitionData.uid,
-                                SeriesNumber: acquisitionData.number,
-                                SeriesDescription: acquisitionData.description,
-                                Modality: acquisitionData.modality,
-                                SeriesDate: acquisitionData.date,
-                                SeriesTime: acquisitionData.time,
-                                Manufacturer: acquisitionData.manufacturer || null,
-                                ManufacturerModelName: acquisitionData.model || null,
-                                ProtocolName: acquisitionData.protocol || null
-                            }
-                        },
-                        tags: [
-                            'dicom-import', 
-                            `modality-${acquisitionData.modality.toLowerCase()}`,
-                            `series-${acquisitionData.number}`
-                        ]
-                    };
-
-                    const newAcquisition = await this.extension.createContainer('acquisition', session._id, acquisitionPayload);
-                    
-                    // Add metadata tags
-                    await this.tagContainer(newAcquisition, {
-                        'dicom:series_uid': acquisitionData.uid,
-                        'dicom:series_number': acquisitionData.number,
-                        'dicom:modality': acquisitionData.modality,
-                        'dicom:series_description': acquisitionData.description,
-                        'dicom:manufacturer': acquisitionData.manufacturer || 'unknown',
-                        'dicom:protocol': acquisitionData.protocol || 'unknown',
-                        'import:source': 'dicom-organizer'
-                    });
-
-                    return newAcquisition;
-                    
-                } catch (error) {
-                    throw new Error(`Acquisition creation failed: ${error.message}`);
-                }
-            }
-
-            async uploadFileWithHierarchy(container, file, metadata, group) {
-                try {
-                    this.log(`📤 Uploading ${file.name} (${this.formatFileSize(file.size)}) with hierarchy info`, 'info');
-                    
-                    // Simple upload without complex retry/timeout logic
-                    return new Promise((resolve, reject) => {
-                        const uploadObservable = this.extension.uploadFile(container, file);
-                        let lastProgressUpdate = 0;
-                        
-                        uploadObservable.subscribe({
-                            next: event => {
-                                if (event.type === 'progress') {
-                                    const percent = Math.round((event.loaded / event.total) * 100);
-                                    
-                                    // Only log progress every 25% to avoid spam
-                                    if (percent >= lastProgressUpdate + 25 || percent === 100) {
-                                        this.log(`📊 ${file.name}: ${percent}% (${this.formatFileSize(event.loaded)}/${this.formatFileSize(event.total)})`, 'info');
-                                        lastProgressUpdate = percent;
-                                    }
-                                    
-                                } else if (event.type === 'response') {
-                                    // File upload complete, now add comprehensive metadata
-                                    this.addHierarchyMetadata(event.file, metadata, group)
-                                        .then(() => {
-                                            this.log(`✅ ${file.name} uploaded with full hierarchy metadata`, 'success');
-                                            resolve(event.file);
-                                        })
-                                        .catch(error => {
-                                            // Don't fail upload if metadata fails
-                                            this.log(`⚠️ ${file.name} uploaded but metadata failed: ${error.message}`, 'warning');
-                                            resolve(event.file);
-                                        });
-                                }
-                            },
-                            error: error => {
-                                this.log(`❌ Upload failed for ${file.name}: ${error.message}`, 'error');
-                                reject(new Error(`File upload failed: ${error.message}`));
-                            }
-                        });
-                    });
-                    
-                } catch (error) {
-                    // Enhanced error context
-                    const errorContext = {
-                        fileName: file.name,
-                        fileSize: file.size,
-                        containerType: container.container_type,
-                        containerId: container._id,
-                        timestamp: new Date().toISOString()
-                    };
-                    
-                    this.log(`❌ Failed to upload ${file.name}: ${error.message}`, 'error');
-                    this.log(`🔍 Error context: ${JSON.stringify(errorContext)}`, 'info');
-                    
-                    throw new Error(`File upload failed: ${error.message}`);
-                }
-            }
-
-            async addHierarchyMetadata(file, metadata, group) {
-                try {
-                    // Since updateFileInfo doesn't exist in the SDK, we'll add metadata to the container instead
-                    // and store a reference to which files belong to which hierarchy
-                    
-                    const container = this.extension.container;
-                    
-                    // Create a comprehensive metadata object for the container
-                    const hierarchyInfo = {
-                        [`file_${file.name}_metadata`]: {
-                            // DICOM metadata
-                            SOPInstanceUID: metadata.sopInstanceUID,
-                            InstanceNumber: metadata.instanceNumber,
-                            PatientID: metadata.patientId,
-                            PatientName: metadata.patientName,
-                            StudyInstanceUID: metadata.studyInstanceUID,
-                            SeriesInstanceUID: metadata.seriesInstanceUID,
-                            Modality: metadata.modality,
-                            StudyDate: metadata.studyDate,
-                            SeriesDescription: metadata.seriesDescription,
-                            
-                            // Intended hierarchy
-                            intendedSubject: {
-                                label: group.subject.name,
-                                code: group.subject.id,
-                                sex: group.subject.sex
-                            },
-                            intendedSession: {
-                                label: group.session.description,
-                                studyInstanceUID: group.session.uid,
-                                studyDate: group.session.date
-                            },
-                            intendedAcquisition: {
-                                label: `${metadata.modality} - ${metadata.seriesDescription}`,
-                                seriesInstanceUID: metadata.seriesInstanceUID,
-                                modality: metadata.modality,
-                                seriesNumber: metadata.seriesNumber
-                            },
-                            
-                            // Import metadata
-                            importTimestamp: new Date().toISOString(),
-                            importSource: 'dicom-organizer-v2',
-                            originalFilename: metadata.fileName
-                        }
-                    };
-
-                    // Add this metadata to the container's info
-                    await this.extension.updateContainerInfo(container, {
-                        set: {
-                            [`dicom_organizer_files.${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`]: hierarchyInfo[`file_${file.name}_metadata`]
-                        }
-                    });
-                    
-                    this.log(`🏷️ Hierarchy metadata added to container for ${file.name}`, 'success');
-                    
-                } catch (error) {
-                    // Don't fail the upload if metadata addition fails
-                    this.log(`⚠️ Failed to add hierarchy metadata for ${file.name}: ${error.message}`, 'warning');
-                    
-                    // Store metadata locally as fallback
-                    if (!window.dicomOrganizerMetadata) {
-                        window.dicomOrganizerMetadata = {};
-                    }
-                    window.dicomOrganizerMetadata[file.name] = {
-                        patientId: metadata.patientId,
-                        modality: metadata.modality,
-                        studyDate: metadata.studyDate,
-                        seriesDescription: metadata.seriesDescription,
-                        uploadTime: new Date().toISOString()
-                    };
-                    
-                    this.log(`💾 Metadata stored locally for ${file.name}`, 'info');
-                }
-            }
-
-            async searchContainers(parentId, containerType, searchCriteria) {
-                try {
-                    // Get all containers of the specified type under the parent
-                    const containers = await this.extension.getContainers(containerType, {
-                        parent: parentId
-                    });
-
-                    // Filter containers based on search criteria
-                    return containers.filter(container => {
-                        return this.matchesSearchCriteria(container, searchCriteria);
-                    });
-                    
-                } catch (error) {
-                    this.log(`⚠️ Container search failed: ${error.message}`, 'warning');
-                    return []; // Return empty array if search fails
-                }
-            }
-
-            matchesSearchCriteria(container, criteria) {
-                for (const [path, value] of Object.entries(criteria)) {
-                    const containerValue = this.getNestedProperty(container, path);
-                    if (containerValue !== value) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
-            getNestedProperty(obj, path) {
-                return path.split('.').reduce((current, key) => {
-                    return current && current[key] !== undefined ? current[key] : undefined;
-                }, obj);
-            }
-
-            async tagContainer(container, tags) {
-                try {
-                    // Add searchable tags to container
-                    const updatePayload = {
-                        set: {
-                            info: {
-                                ...container.info,
-                                tags: {
-                                    ...container.info?.tags,
-                                    ...tags
-                                }
-                            }
-                        }
-                    };
-
-                    await this.extension.updateContainerInfo(container, updatePayload);
-                    this.log(`🏷️ Added tags to ${container.label}`, 'info');
-                    
-                } catch (error) {
-                    this.log(`⚠️ Failed to tag ${container.label}: ${error.message}`, 'warning');
-                    // Don't fail the upload if tagging fails
-                }
-            }
-
-            parseDICOMDateTime(date, time) {
-                try {
-                    if (!date) return new Date();
-                    
-                    // Parse DICOM date format (YYYYMMDD)
-                    const year = date.substring(0, 4);
-                    const month = date.substring(4, 6);
-                    const day = date.substring(6, 8);
-                    
-                    // Parse DICOM time format (HHMMSS or HHMMSS.ffffff)
-                    let timeStr = '00:00:00';
-                    if (time && time.length >= 6) {
-                        const hour = time.substring(0, 2);
-                        const minute = time.substring(2, 4);
-                        const second = time.substring(4, 6);
-                        timeStr = `${hour}:${minute}:${second}`;
-                    }
-                    
-                    return new Date(`${year}-${month}-${day}T${timeStr}`);
-                    
-                } catch (error) {
-                    this.log(`⚠️ Failed to parse DICOM datetime: ${error.message}`, 'warning');
-                    return new Date();
-                }
+                this.log('ℹ️ In real mode, files would be uploaded to current container with full metadata', 'info');
             }
 
             clearAll() {
@@ -1994,7 +1456,7 @@
         }
 
         // Initialize the application
-        const organizer = new AdvancedDICOMOrganizer();
+        const organizer = new FixedDICOMOrganizer();
     </script>
 </body>
 </html>
