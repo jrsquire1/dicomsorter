@@ -1098,19 +1098,37 @@
             }
 
             async validateHierarchy() {
-                this.log('Validating DICOM hierarchy...', 'info');
+                this.log('🔍 Validating DICOM hierarchy and Flywheel readiness...', 'info');
                 
                 if (this.fileGroups.size === 0) {
-                    this.log('No files to validate', 'warning');
+                    this.log('⚠️ No files to validate', 'warning');
                     return;
                 }
 
                 let issues = [];
+                let warnings = [];
                 
+                // Check Flywheel connection
+                if (!this.isConnected) {
+                    issues.push('Not connected to Flywheel instance');
+                } else {
+                    try {
+                        await this.validateConnection();
+                        this.log('✅ Flywheel connection verified', 'success');
+                    } catch (error) {
+                        issues.push(`Flywheel connection issue: ${error.message}`);
+                    }
+                }
+
+                // Validate each subject group
                 for (const [groupKey, group] of this.fileGroups) {
                     // Validate subject data
                     if (!group.subject.id || group.subject.id.includes('Unknown')) {
                         issues.push(`Subject ${groupKey}: Missing or invalid Patient ID`);
+                    }
+                    
+                    if (!group.subject.name || group.subject.name.includes('Unknown')) {
+                        warnings.push(`Subject ${groupKey}: Missing or generic Patient Name`);
                     }
                     
                     // Validate session data
@@ -1118,7 +1136,21 @@
                         issues.push(`Session ${groupKey}: Missing Study UID or Date`);
                     }
                     
+                    // Check for reasonable study date
+                    const studyDate = new Date(group.session.date);
+                    const now = new Date();
+                    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                    const oneYearFromNow = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+                    
+                    if (studyDate < oneYearAgo || studyDate > oneYearFromNow) {
+                        warnings.push(`Session ${groupKey}: Study date seems unusual (${group.session.date})`);
+                    }
+                    
                     // Validate acquisitions
+                    if (group.acquisitions.size === 0) {
+                        issues.push(`Session ${groupKey}: No acquisitions found`);
+                    }
+                    
                     for (const [acqKey, acquisition] of group.acquisitions) {
                         if (!acquisition.uid || !acquisition.modality) {
                             issues.push(`Acquisition ${acqKey}: Missing Series UID or Modality`);
@@ -1127,29 +1159,176 @@
                         if (acquisition.files.length === 0) {
                             issues.push(`Acquisition ${acqKey}: No files`);
                         }
+                        
+                        // Check for reasonable file count per series
+                        if (acquisition.files.length > 1000) {
+                            warnings.push(`Acquisition ${acqKey}: Large number of files (${acquisition.files.length}), upload may take time`);
+                        }
+                        
+                        // Validate modality
+                        const validModalities = ['CT', 'MR', 'US', 'XA', 'RF', 'DX', 'CR', 'MG', 'PT', 'NM', 'SC', 'OT'];
+                        if (!validModalities.includes(acquisition.modality)) {
+                            warnings.push(`Acquisition ${acqKey}: Unusual modality "${acquisition.modality}"`);
+                        }
                     }
                 }
 
-                if (issues.length === 0) {
-                    this.log('✅ Hierarchy validation passed - all data is valid', 'success');
-                } else {
-                    this.log(`❌ Hierarchy validation found ${issues.length} issues:`, 'warning');
-                    issues.forEach(issue => this.log(`  - ${issue}`, 'warning'));
+                // Check for potential duplicates
+                const patientIds = Array.from(this.fileGroups.values()).map(g => g.subject.id);
+                const duplicatePatients = patientIds.filter((id, index) => patientIds.indexOf(id) !== index);
+                if (duplicatePatients.length > 0) {
+                    warnings.push(`Potential duplicate Patient IDs: ${[...new Set(duplicatePatients)].join(', ')}`);
                 }
+
+                // Report results
+                if (issues.length === 0 && warnings.length === 0) {
+                    this.log('✅ Hierarchy validation passed - all data is valid and ready for upload', 'success');
+                    this.log(`📊 Summary: ${this.fileGroups.size} subjects, ${this.calculateStats().acquisitions} acquisitions, ${this.getTotalFileCount()} files`, 'info');
+                } else {
+                    if (issues.length > 0) {
+                        this.log(`❌ Hierarchy validation found ${issues.length} critical issues:`, 'error');
+                        issues.forEach(issue => this.log(`  ▸ ${issue}`, 'error'));
+                    }
+                    
+                    if (warnings.length > 0) {
+                        this.log(`⚠️ Hierarchy validation found ${warnings.length} warnings:`, 'warning');
+                        warnings.forEach(warning => this.log(`  ▸ ${warning}`, 'warning'));
+                    }
+                    
+                    if (issues.length > 0) {
+                        this.log('🚫 Upload blocked due to critical issues. Please resolve them before uploading.', 'error');
+                        document.getElementById('uploadBtn').disabled = true;
+                        document.getElementById('uploadBtn').textContent = 'Resolve Issues First';
+                    } else {
+                        this.log('⚠️ Upload can proceed but warnings should be reviewed.', 'warning');
+                    }
+                }
+
+                return { issues, warnings };
+            }
+
+            async withTimeout(promise, timeoutMs = 30000) {
+                const timeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+                );
+                
+                return Promise.race([promise, timeout]);
+            }
+
+            async retryOperation(operation, maxRetries = 3, baseDelay = 1000) {
+                let lastError;
+                
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        return await operation();
+                    } catch (error) {
+                        lastError = error;
+                        
+                        if (attempt < maxRetries) {
+                            const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+                            this.log(`⏳ Retry attempt ${attempt}/${maxRetries} in ${delay}ms`, 'warning');
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        }
+                    }
+                }
+                
+                throw lastError;
+            }
+
+            createSearchableMetadata(metadata) {
+                // Create a flattened, searchable version of DICOM metadata
+                return {
+                    // Patient information
+                    patient_id: metadata.patientId,
+                    patient_name: metadata.patientName?.toLowerCase(),
+                    patient_sex: metadata.patientSex?.toLowerCase(),
+                    patient_age: metadata.patientAge,
+                    
+                    // Study information  
+                    study_uid: metadata.studyInstanceUID,
+                    study_date: metadata.studyDate,
+                    study_description: metadata.studyDescription?.toLowerCase(),
+                    accession_number: metadata.accessionNumber,
+                    
+                    // Series information
+                    series_uid: metadata.seriesInstanceUID,
+                    series_number: metadata.seriesNumber,
+                    modality: metadata.modality?.toLowerCase(),
+                    series_description: metadata.seriesDescription?.toLowerCase(),
+                    
+                    // Technical parameters
+                    manufacturer: metadata.manufacturer?.toLowerCase(),
+                    model: metadata.manufacturerModelName?.toLowerCase(),
+                    protocol: metadata.protocolName?.toLowerCase(),
+                    
+                    // Import metadata
+                    import_timestamp: new Date().toISOString(),
+                    import_source: 'dicom-organizer',
+                    original_filename: metadata.fileName
+                };
+            }
+
+            sanitizeContainerLabel(label) {
+                // Sanitize labels for Flywheel containers
+                return label
+                    .replace(/[^\w\s\-\.]/g, '') // Remove special characters except word chars, spaces, hyphens, dots
+                    .replace(/\s+/g, ' ') // Collapse multiple spaces
+                    .trim()
+                    .substring(0, 100); // Limit length
+            }
+
+            estimateUploadTime(totalFiles, totalSizeBytes) {
+                // Rough estimation based on typical upload speeds
+                const avgFileProcessingTime = 2; // seconds per file
+                const avgUploadSpeedMBps = 5; // MB per second
+                
+                const processingTime = totalFiles * avgFileProcessingTime;
+                const uploadTime = (totalSizeBytes / (1024 * 1024)) / avgUploadSpeedMBps;
+                
+                return Math.max(processingTime, uploadTime);
+            }
+
+            formatDuration(seconds) {
+                if (seconds < 60) return `${Math.round(seconds)}s`;
+                if (seconds < 3600) return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+                return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
             }
 
             updateUploadButton() {
                 const uploadBtn = document.getElementById('uploadBtn');
+                const validateBtn = document.getElementById('validateBtn');
                 const fileCount = this.getTotalFileCount();
                 
-                uploadBtn.disabled = fileCount === 0;
+                // Calculate total file size for time estimation
+                const totalSize = this.processedFiles.reduce((sum, fileData) => sum + fileData.file.size, 0);
                 
-                if (fileCount > 0) {
-                    uploadBtn.innerHTML = this.isConnected 
-                        ? `Upload ${fileCount} files to Flywheel`
-                        : `${fileCount} files ready (Demo mode)`;
-                } else {
+                if (fileCount === 0) {
+                    uploadBtn.disabled = true;
                     uploadBtn.textContent = 'Upload to Flywheel';
+                    validateBtn.disabled = true;
+                    return;
+                }
+
+                validateBtn.disabled = false;
+                
+                if (this.isConnected) {
+                    const estimatedTime = this.estimateUploadTime(fileCount, totalSize);
+                    uploadBtn.innerHTML = `
+                        Upload ${fileCount} files to Flywheel
+                        <br><small style="font-size: 12px; opacity: 0.8;">
+                            Est. time: ${this.formatDuration(estimatedTime)} | 
+                            Size: ${this.formatFileSize(totalSize)}
+                        </small>
+                    `;
+                    uploadBtn.disabled = false;
+                } else {
+                    uploadBtn.innerHTML = `
+                        ${fileCount} files ready (Demo mode)
+                        <br><small style="font-size: 12px; opacity: 0.8;">
+                            Connect to Flywheel to upload
+                        </small>
+                    `;
+                    uploadBtn.disabled = false; // Allow demo mode
                 }
             }
 
@@ -1170,25 +1349,156 @@
                     return;
                 }
 
-                this.log('Starting upload to Flywheel...', 'info');
+                this.log('🚀 Starting upload to Flywheel...', 'info');
                 const uploadBtn = document.getElementById('uploadBtn');
                 const originalText = uploadBtn.textContent;
                 uploadBtn.disabled = true;
                 uploadBtn.innerHTML = '<span class="loading-spinner"></span> Uploading...';
 
+                const startTime = Date.now();
+                let uploadedFiles = 0;
+                let failedFiles = 0;
+                const totalFiles = this.getTotalFileCount();
+
                 try {
+                    // Validate connection before starting
+                    await this.validateConnection();
+                    
+                    this.log(`📊 Starting upload of ${totalFiles} files across ${this.fileGroups.size} subjects`, 'info');
+
                     for (const [groupKey, group] of this.fileGroups) {
-                        await this.uploadGroup(group);
+                        try {
+                            const groupResult = await this.uploadGroupWithRetry(group, 3);
+                            uploadedFiles += groupResult.uploadedCount;
+                            failedFiles += groupResult.failedCount;
+                            
+                        } catch (error) {
+                            this.log(`❌ Failed to upload group ${group.subject.name}: ${error.message}`, 'error');
+                            failedFiles += Array.from(group.acquisitions.values())
+                                .reduce((sum, acq) => sum + acq.files.length, 0);
+                        }
                     }
                     
-                    this.log('✅ Successfully uploaded all files to Flywheel!', 'success');
-                    uploadBtn.textContent = 'Upload Complete!';
+                    const duration = Math.round((Date.now() - startTime) / 1000);
+                    
+                    if (failedFiles === 0) {
+                        this.log(`✅ Upload complete! ${uploadedFiles} files uploaded in ${duration}s`, 'success');
+                        uploadBtn.textContent = '✅ Upload Complete!';
+                        uploadBtn.style.background = '#38a169';
+                    } else {
+                        this.log(`⚠️ Upload finished with errors: ${uploadedFiles} successful, ${failedFiles} failed in ${duration}s`, 'warning');
+                        uploadBtn.textContent = `⚠️ ${uploadedFiles}/${totalFiles} Uploaded`;
+                        uploadBtn.style.background = '#ed8936';
+                        uploadBtn.disabled = false;
+                    }
                     
                 } catch (error) {
-                    this.log(`❌ Upload failed: ${error.message}`, 'error');
-                    uploadBtn.disabled = false;
-                    uploadBtn.textContent = originalText;
+                    const duration = Math.round((Date.now() - startTime) / 1000);
+                    this.handleUploadError(error, uploadBtn, originalText, duration);
                 }
+            }
+
+            async validateConnection() {
+                try {
+                    // Test connection by getting current container info
+                    await this.extension.getContainer(this.extension.container.container_type, this.extension.container._id);
+                    this.log('✅ Connection validated', 'success');
+                } catch (error) {
+                    throw new Error(`Connection validation failed: ${error.message}`);
+                }
+            }
+
+            async uploadGroupWithRetry(group, maxRetries = 3) {
+                let uploadedCount = 0;
+                let failedCount = 0;
+                let retryCount = 0;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        await this.uploadGroup(group);
+                        
+                        // Count successful files
+                        uploadedCount = Array.from(group.acquisitions.values())
+                            .reduce((sum, acq) => sum + acq.files.length, 0);
+                        break;
+                        
+                    } catch (error) {
+                        retryCount++;
+                        
+                        if (retryCount < maxRetries) {
+                            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+                            this.log(`⏳ Retrying group ${group.subject.name} in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`, 'warning');
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        } else {
+                            this.log(`❌ Max retries exceeded for group ${group.subject.name}`, 'error');
+                            failedCount = Array.from(group.acquisitions.values())
+                                .reduce((sum, acq) => sum + acq.files.length, 0);
+                            throw error;
+                        }
+                    }
+                }
+
+                return { uploadedCount, failedCount };
+            }
+
+            handleUploadError(error, uploadBtn, originalText, duration) {
+                let errorMessage = 'Unknown error occurred';
+                let actionAdvice = 'Please try again';
+
+                // Categorize errors and provide specific advice
+                if (error.message.includes('network') || error.message.includes('fetch')) {
+                    errorMessage = 'Network connection error';
+                    actionAdvice = 'Check your internet connection and try again';
+                } else if (error.message.includes('permission') || error.message.includes('auth')) {
+                    errorMessage = 'Permission or authentication error';
+                    actionAdvice = 'Check your Flywheel permissions';
+                } else if (error.message.includes('quota') || error.message.includes('space')) {
+                    errorMessage = 'Storage quota exceeded';
+                    actionAdvice = 'Contact your Flywheel administrator';
+                } else if (error.message.includes('validation')) {
+                    errorMessage = 'Data validation error';
+                    actionAdvice = 'Check your DICOM files and try again';
+                } else {
+                    errorMessage = error.message;
+                }
+
+                this.log(`❌ Upload failed after ${duration}s: ${errorMessage}`, 'error');
+                this.log(`💡 Suggestion: ${actionAdvice}`, 'info');
+                
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '🔄 Retry Upload';
+                uploadBtn.style.background = '#e53e3e';
+                
+                // Show error details in UI
+                this.showErrorDialog(errorMessage, actionAdvice, error.stack);
+            }
+
+            showErrorDialog(message, advice, details) {
+                // Create a simple error dialog (could be enhanced with a modal)
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-state';
+                errorDiv.innerHTML = `
+                    <h4>❌ Upload Error</h4>
+                    <p><strong>Error:</strong> ${message}</p>
+                    <p><strong>Suggestion:</strong> ${advice}</p>
+                    <details style="margin-top: 10px;">
+                        <summary>Technical Details</summary>
+                        <pre style="font-size: 11px; margin-top: 5px;">${details || 'No additional details available'}</pre>
+                    </details>
+                    <button onclick="this.parentElement.remove()" style="margin-top: 10px; padding: 5px 10px; border: none; background: #e53e3e; color: white; border-radius: 4px; cursor: pointer;">
+                        Dismiss
+                    </button>
+                `;
+                
+                const statusSection = document.querySelector('.status-section');
+                statusSection.insertBefore(errorDiv, statusSection.firstChild);
+                
+                // Auto-remove after 30 seconds
+                setTimeout(() => {
+                    if (errorDiv.parentElement) {
+                        errorDiv.remove();
+                    }
+                }, 30000);
             }
 
             async simulateUpload() {
@@ -1226,8 +1536,11 @@
                 this.log(`Creating hierarchy for Subject: ${group.subject.name}`, 'info');
 
                 try {
+                    // Get current project as parent
+                    const project = this.extension.container;
+                    
                     // Create or find subject
-                    const subject = await this.createOrFindSubject(group.subject);
+                    const subject = await this.createOrFindSubject(project, group.subject);
                     this.log(`✅ Subject ready: ${subject.label}`, 'success');
 
                     // Create or find session  
@@ -1236,11 +1549,11 @@
 
                     // Create acquisitions and upload files
                     for (const [seriesKey, acquisition] of group.acquisitions) {
-                        const acq = await this.createAcquisition(session, acquisition);
-                        this.log(`✅ Acquisition created: ${acq.label}`, 'success');
+                        const acq = await this.createOrFindAcquisition(session, acquisition);
+                        this.log(`✅ Acquisition ready: ${acq.label}`, 'success');
                         
                         for (const fileData of acquisition.files) {
-                            await this.uploadFile(acq, fileData.file, fileData.metadata);
+                            await this.uploadFileToContainer(acq, fileData.file, fileData.metadata);
                             this.log(`✅ Uploaded: ${fileData.file.name}`, 'success');
                         }
                     }
@@ -1250,47 +1563,453 @@
                 }
             }
 
-            async createOrFindSubject(subjectData) {
-                // Implementation would use extension.getContainers() to find existing subject
-                // or extension.createContainer() to create new one
-                const mockSubject = {
-                    _id: 'subject_' + subjectData.id,
-                    label: subjectData.name,
-                    container_type: 'subject'
-                };
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-                return mockSubject;
+            async createOrFindSubject(project, subjectData) {
+                try {
+                    // Search for existing subject by Patient ID
+                    this.log(`🔍 Searching for existing subject: ${subjectData.id}`, 'info');
+                    
+                    const existingSubjects = await this.withTimeout(
+                        this.searchContainers(project._id, 'subject', {
+                            'code': subjectData.id
+                        }),
+                        10000 // 10 second timeout for search
+                    );
+
+                    if (existingSubjects.length > 0) {
+                        this.log(`📋 Found existing subject: ${existingSubjects[0].label}`, 'info');
+                        
+                        // Update existing subject with any new metadata
+                        await this.updateSubjectMetadata(existingSubjects[0], subjectData);
+                        return existingSubjects[0];
+                    }
+
+                    // Create new subject
+                    this.log(`➕ Creating new subject: ${subjectData.name}`, 'info');
+                    
+                    const sanitizedLabel = this.sanitizeContainerLabel(subjectData.name || subjectData.id);
+                    const subjectPayload = {
+                        label: sanitizedLabel,
+                        code: subjectData.id,
+                        sex: subjectData.sex || null,
+                        cohort: 'DICOM Import',
+                        info: {
+                            DICOM: {
+                                PatientName: subjectData.name,
+                                PatientID: subjectData.id,
+                                PatientBirthDate: subjectData.birthDate || null,
+                                PatientSex: subjectData.sex || null,
+                                PatientAge: subjectData.age || null,
+                                ImportTimestamp: new Date().toISOString(),
+                                ImportSource: 'dicom-organizer'
+                            },
+                            searchable: {
+                                patient_id: subjectData.id.toLowerCase(),
+                                patient_name: subjectData.name?.toLowerCase() || '',
+                                patient_sex: subjectData.sex?.toLowerCase() || 'unknown',
+                                import_date: new Date().toISOString().split('T')[0]
+                            }
+                        },
+                        tags: [
+                            'dicom-import', 
+                            `patient-${subjectData.id.toLowerCase()}`,
+                            'dicom-organizer-subject'
+                        ]
+                    };
+
+                    const newSubject = await this.withTimeout(
+                        this.retryOperation(async () => {
+                            return await this.extension.createContainer('subject', project._id, subjectPayload);
+                        }, 3, 1000),
+                        30000 // 30 second timeout for creation
+                    );
+                    
+                    // Add additional searchable tags
+                    await this.tagContainer(newSubject, {
+                        'dicom:patient_id': subjectData.id,
+                        'dicom:patient_name': subjectData.name || subjectData.id,
+                        'dicom:patient_sex': subjectData.sex || 'unknown',
+                        'import:source': 'dicom-organizer',
+                        'import:timestamp': new Date().toISOString(),
+                        'import:version': '2.0'
+                    });
+
+                    this.log(`✅ Created subject: ${newSubject.label} (${newSubject._id})`, 'success');
+                    return newSubject;
+                    
+                } catch (error) {
+                    const errorMsg = `Subject creation failed for ${subjectData.id}: ${error.message}`;
+                    this.log(`❌ ${errorMsg}`, 'error');
+                    throw new Error(errorMsg);
+                }
+            }
+
+            async updateSubjectMetadata(subject, subjectData) {
+                try {
+                    // Update existing subject with new DICOM data if needed
+                    const updatePayload = {
+                        set: {
+                            info: {
+                                ...subject.info,
+                                DICOM: {
+                                    ...subject.info?.DICOM,
+                                    PatientName: subjectData.name,
+                                    PatientID: subjectData.id,
+                                    PatientBirthDate: subjectData.birthDate || subject.info?.DICOM?.PatientBirthDate,
+                                    PatientSex: subjectData.sex || subject.info?.DICOM?.PatientSex,
+                                    PatientAge: subjectData.age || subject.info?.DICOM?.PatientAge,
+                                    LastUpdated: new Date().toISOString()
+                                }
+                            }
+                        }
+                    };
+
+                    await this.extension.updateContainerInfo(subject, updatePayload);
+                    this.log(`🔄 Updated existing subject metadata: ${subject.label}`, 'info');
+                    
+                } catch (error) {
+                    this.log(`⚠️ Failed to update subject metadata: ${error.message}`, 'warning');
+                    // Don't fail the process if metadata update fails
+                }
             }
 
             async createOrFindSession(subject, sessionData) {
-                // Implementation would use extension SDK methods
-                const mockSession = {
-                    _id: 'session_' + sessionData.uid,
-                    label: sessionData.description,
-                    container_type: 'session'
-                };
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-                return mockSession;
+                try {
+                    // Search for existing session by Study Instance UID
+                    this.log(`🔍 Searching for existing session: ${sessionData.description}`, 'info');
+                    
+                    const existingSession = await this.searchContainers(subject._id, 'session', {
+                        'info.DICOM.StudyInstanceUID': sessionData.uid
+                    });
+
+                    if (existingSession.length > 0) {
+                        this.log(`📋 Found existing session: ${existingSession[0].label}`, 'info');
+                        return existingSession[0];
+                    }
+
+                    // Create new session
+                    this.log(`➕ Creating new session: ${sessionData.description}`, 'info');
+                    
+                    const sessionPayload = {
+                        label: sessionData.description || `Study ${sessionData.date}`,
+                        timestamp: this.parseDICOMDateTime(sessionData.date, sessionData.time),
+                        info: {
+                            DICOM: {
+                                StudyInstanceUID: sessionData.uid,
+                                StudyDate: sessionData.date,
+                                StudyTime: sessionData.time,
+                                StudyDescription: sessionData.description,
+                                StudyID: sessionData.id,
+                                AccessionNumber: sessionData.accessionNumber || null
+                            }
+                        },
+                        tags: ['dicom-import', 'study-' + sessionData.date]
+                    };
+
+                    const newSession = await this.extension.createContainer('session', subject._id, sessionPayload);
+                    
+                    // Add metadata tags
+                    await this.tagContainer(newSession, {
+                        'dicom:study_uid': sessionData.uid,
+                        'dicom:study_date': sessionData.date,
+                        'dicom:study_description': sessionData.description || 'unknown',
+                        'dicom:accession_number': sessionData.accessionNumber || 'none',
+                        'import:source': 'dicom-organizer'
+                    });
+
+                    return newSession;
+                    
+                } catch (error) {
+                    throw new Error(`Session creation failed: ${error.message}`);
+                }
             }
 
-            async createAcquisition(session, acquisitionData) {
-                // Implementation would use extension.createContainer()
-                const mockAcquisition = {
-                    _id: 'acquisition_' + acquisitionData.uid,
-                    label: acquisitionData.description,
-                    container_type: 'acquisition'
-                };
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-                return mockAcquisition;
+            async createOrFindAcquisition(session, acquisitionData) {
+                try {
+                    // Search for existing acquisition by Series Instance UID
+                    this.log(`🔍 Searching for existing acquisition: Series ${acquisitionData.number}`, 'info');
+                    
+                    const existingAcquisition = await this.searchContainers(session._id, 'acquisition', {
+                        'info.DICOM.SeriesInstanceUID': acquisitionData.uid
+                    });
+
+                    if (existingAcquisition.length > 0) {
+                        this.log(`📋 Found existing acquisition: ${existingAcquisition[0].label}`, 'info');
+                        return existingAcquisition[0];
+                    }
+
+                    // Create new acquisition
+                    this.log(`➕ Creating new acquisition: ${acquisitionData.description}`, 'info');
+                    
+                    const acquisitionPayload = {
+                        label: `${acquisitionData.modality} - ${acquisitionData.description}`,
+                        timestamp: this.parseDICOMDateTime(acquisitionData.date, acquisitionData.time),
+                        info: {
+                            DICOM: {
+                                SeriesInstanceUID: acquisitionData.uid,
+                                SeriesNumber: acquisitionData.number,
+                                SeriesDescription: acquisitionData.description,
+                                Modality: acquisitionData.modality,
+                                SeriesDate: acquisitionData.date,
+                                SeriesTime: acquisitionData.time,
+                                Manufacturer: acquisitionData.manufacturer || null,
+                                ManufacturerModelName: acquisitionData.model || null,
+                                ProtocolName: acquisitionData.protocol || null
+                            }
+                        },
+                        tags: [
+                            'dicom-import', 
+                            `modality-${acquisitionData.modality.toLowerCase()}`,
+                            `series-${acquisitionData.number}`
+                        ]
+                    };
+
+                    const newAcquisition = await this.extension.createContainer('acquisition', session._id, acquisitionPayload);
+                    
+                    // Add metadata tags
+                    await this.tagContainer(newAcquisition, {
+                        'dicom:series_uid': acquisitionData.uid,
+                        'dicom:series_number': acquisitionData.number,
+                        'dicom:modality': acquisitionData.modality,
+                        'dicom:series_description': acquisitionData.description,
+                        'dicom:manufacturer': acquisitionData.manufacturer || 'unknown',
+                        'dicom:protocol': acquisitionData.protocol || 'unknown',
+                        'import:source': 'dicom-organizer'
+                    });
+
+                    return newAcquisition;
+                    
+                } catch (error) {
+                    throw new Error(`Acquisition creation failed: ${error.message}`);
+                }
             }
 
-            async uploadFile(container, file, metadata) {
-                // Implementation would use extension.uploadFile()
-                await new Promise(resolve => setTimeout(resolve, 50));
-                return { success: true };
+            async uploadFileToContainer(container, file, metadata) {
+                try {
+                    this.log(`📤 Uploading ${file.name} (${this.formatFileSize(file.size)}) to ${container.label}`, 'info');
+                    
+                    // Wrap upload with timeout and retry logic
+                    return await this.withTimeout(
+                        this.retryOperation(async () => {
+                            return new Promise((resolve, reject) => {
+                                const uploadObservable = this.extension.uploadFile(container, file);
+                                let lastProgressUpdate = 0;
+                                
+                                uploadObservable.subscribe({
+                                    next: event => {
+                                        if (event.type === 'progress') {
+                                            const percent = Math.round((event.loaded / event.total) * 100);
+                                            
+                                            // Only log progress every 25% to avoid spam
+                                            if (percent >= lastProgressUpdate + 25 || percent === 100) {
+                                                this.log(`📊 ${file.name}: ${percent}% (${this.formatFileSize(event.loaded)}/${this.formatFileSize(event.total)})`, 'info');
+                                                lastProgressUpdate = percent;
+                                            }
+                                            
+                                        } else if (event.type === 'response') {
+                                            // File upload complete, now add DICOM metadata
+                                            this.addFileMetadata(event.file, metadata)
+                                                .then(() => {
+                                                    this.log(`✅ ${file.name} uploaded with metadata`, 'success');
+                                                    resolve(event.file);
+                                                })
+                                                .catch(error => {
+                                                    // Don't fail upload if metadata fails
+                                                    this.log(`⚠️ ${file.name} uploaded but metadata failed: ${error.message}`, 'warning');
+                                                    resolve(event.file);
+                                                });
+                                        }
+                                    },
+                                    error: error => {
+                                        this.log(`❌ Upload failed for ${file.name}: ${error.message}`, 'error');
+                                        reject(new Error(`File upload failed: ${error.message}`));
+                                    }
+                                });
+                            });
+                        }, 2, 2000), // 2 retries with 2 second base delay
+                        60000 // 60 second timeout for large files
+                    );
+                    
+                } catch (error) {
+                    // Enhanced error context
+                    const errorContext = {
+                        fileName: file.name,
+                        fileSize: file.size,
+                        containerType: container.container_type,
+                        containerId: container._id,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    this.log(`❌ Failed to upload ${file.name}: ${error.message}`, 'error');
+                    this.log(`🔍 Error context: ${JSON.stringify(errorContext)}`, 'info');
+                    
+                    throw new Error(`File upload failed: ${error.message}`);
+                }
+            }
+
+            async addFileMetadata(file, metadata) {
+                try {
+                    // Create comprehensive, searchable DICOM metadata
+                    const searchableMetadata = this.createSearchableMetadata(metadata);
+                    
+                    const fileMetadata = {
+                        info: {
+                            DICOM: {
+                                // Core DICOM metadata
+                                SOPInstanceUID: metadata.sopInstanceUID,
+                                InstanceNumber: metadata.instanceNumber,
+                                PatientID: metadata.patientId,
+                                StudyInstanceUID: metadata.studyInstanceUID,
+                                SeriesInstanceUID: metadata.seriesInstanceUID,
+                                
+                                // Image parameters
+                                Rows: metadata.rows || null,
+                                Columns: metadata.columns || null,
+                                PixelSpacing: metadata.pixelSpacing || null,
+                                SliceThickness: metadata.sliceThickness || null,
+                                
+                                // Technical parameters
+                                Manufacturer: metadata.manufacturer || null,
+                                ManufacturerModelName: metadata.manufacturerModelName || null,
+                                SoftwareVersions: metadata.softwareVersions || null,
+                                ProtocolName: metadata.protocolName || null,
+                                
+                                // Modality and acquisition info
+                                Modality: metadata.modality,
+                                SeriesDescription: metadata.seriesDescription,
+                                StudyDescription: metadata.studyDescription,
+                                
+                                // Import metadata
+                                ImportTimestamp: new Date().toISOString(),
+                                OriginalFilename: metadata.fileName,
+                                ImportSource: 'dicom-organizer-v2'
+                            },
+                            
+                            // Searchable tags for easy querying
+                            searchable: searchableMetadata
+                        },
+                        
+                        tags: [
+                            'dicom-file',
+                            `instance-${metadata.instanceNumber}`,
+                            `modality-${metadata.modality.toLowerCase()}`,
+                            `patient-${metadata.patientId.toLowerCase()}`,
+                            `series-${metadata.seriesNumber}`,
+                            'dicom-organizer-import'
+                        ]
+                    };
+
+                    await this.extension.updateFileInfo(file, fileMetadata);
+                    this.log(`🏷️ Enhanced metadata added to ${file.name}`, 'success');
+                    
+                } catch (error) {
+                    // Don't fail the upload if metadata addition fails
+                    this.log(`⚠️ Failed to add metadata to ${file.name}: ${error.message}`, 'warning');
+                    
+                    // Try basic metadata as fallback
+                    try {
+                        const basicMetadata = {
+                            info: {
+                                DICOM: {
+                                    SOPInstanceUID: metadata.sopInstanceUID,
+                                    PatientID: metadata.patientId,
+                                    Modality: metadata.modality,
+                                    ImportTimestamp: new Date().toISOString()
+                                }
+                            },
+                            tags: ['dicom-file', 'dicom-organizer-import']
+                        };
+                        
+                        await this.extension.updateFileInfo(file, basicMetadata);
+                        this.log(`🏷️ Basic metadata added to ${file.name}`, 'info');
+                        
+                    } catch (fallbackError) {
+                        this.log(`❌ Failed to add even basic metadata to ${file.name}`, 'error');
+                    }
+                }
+            }
+
+            async searchContainers(parentId, containerType, searchCriteria) {
+                try {
+                    // Get all containers of the specified type under the parent
+                    const containers = await this.extension.getContainers(containerType, {
+                        parent: parentId
+                    });
+
+                    // Filter containers based on search criteria
+                    return containers.filter(container => {
+                        return this.matchesSearchCriteria(container, searchCriteria);
+                    });
+                    
+                } catch (error) {
+                    this.log(`⚠️ Container search failed: ${error.message}`, 'warning');
+                    return []; // Return empty array if search fails
+                }
+            }
+
+            matchesSearchCriteria(container, criteria) {
+                for (const [path, value] of Object.entries(criteria)) {
+                    const containerValue = this.getNestedProperty(container, path);
+                    if (containerValue !== value) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            getNestedProperty(obj, path) {
+                return path.split('.').reduce((current, key) => {
+                    return current && current[key] !== undefined ? current[key] : undefined;
+                }, obj);
+            }
+
+            async tagContainer(container, tags) {
+                try {
+                    // Add searchable tags to container
+                    const updatePayload = {
+                        set: {
+                            info: {
+                                ...container.info,
+                                tags: {
+                                    ...container.info?.tags,
+                                    ...tags
+                                }
+                            }
+                        }
+                    };
+
+                    await this.extension.updateContainerInfo(container, updatePayload);
+                    this.log(`🏷️ Added tags to ${container.label}`, 'info');
+                    
+                } catch (error) {
+                    this.log(`⚠️ Failed to tag ${container.label}: ${error.message}`, 'warning');
+                    // Don't fail the upload if tagging fails
+                }
+            }
+
+            parseDICOMDateTime(date, time) {
+                try {
+                    if (!date) return new Date();
+                    
+                    // Parse DICOM date format (YYYYMMDD)
+                    const year = date.substring(0, 4);
+                    const month = date.substring(4, 6);
+                    const day = date.substring(6, 8);
+                    
+                    // Parse DICOM time format (HHMMSS or HHMMSS.ffffff)
+                    let timeStr = '00:00:00';
+                    if (time && time.length >= 6) {
+                        const hour = time.substring(0, 2);
+                        const minute = time.substring(2, 4);
+                        const second = time.substring(4, 6);
+                        timeStr = `${hour}:${minute}:${second}`;
+                    }
+                    
+                    return new Date(`${year}-${month}-${day}T${timeStr}`);
+                    
+                } catch (error) {
+                    this.log(`⚠️ Failed to parse DICOM datetime: ${error.message}`, 'warning');
+                    return new Date();
+                }
             }
 
             clearAll() {
